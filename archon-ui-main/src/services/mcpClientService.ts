@@ -398,17 +398,20 @@ class MCPClientService {
    * Create Archon MCP client using Streamable HTTP transport
    */
   async createArchonClient(): Promise<MCPClient> {
-    // Build MCP URL relative to current origin unless explicitly overridden
-    const apiBase = getApiUrl();
-    if (apiBase) {
-      // If VITE_API_URL is set, respect it and infer host from there
-      const url = new URL(apiBase);
-      const mcpPort = import.meta.env.ARCHON_MCP_PORT || '8051';
-      const mcpUrl = `${url.protocol}//${url.hostname}:${mcpPort}/mcp`;
-      return this._createClient(mcpUrl);
+    // Require ARCHON_MCP_PORT to be set
+    const mcpPort = import.meta.env.ARCHON_MCP_PORT;
+    if (!mcpPort) {
+      throw new Error(
+        'ARCHON_MCP_PORT environment variable is required. ' +
+        'Please set it in your environment variables. ' +
+        'Default value: 8051'
+      );
     }
-    // Otherwise, use current origin (reverse proxy path)
-    const mcpUrl = `/mcp`;
+
+    // Get the host from the API URL
+    const apiUrl = getApiUrl();
+    const url = new URL(apiUrl || `http://${window.location.hostname}:${mcpPort}`);
+    const mcpUrl = `${url.protocol}//${url.hostname}:${mcpPort}/mcp`;
     return this._createClient(mcpUrl);
   }
 

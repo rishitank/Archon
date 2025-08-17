@@ -7,12 +7,30 @@
 
 // Get the API URL from environment or construct it
 export function getApiUrl(): string {
-  // Prefer explicit VITE_API_URL when provided
+  // Check if VITE_API_URL is provided (set by docker-compose)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  // Default to relative path so requests go through the reverse proxy (dev/prod)
-  return '';
+
+  // For relative URLs in production (goes through proxy)
+  if (import.meta.env.PROD) {
+    return '';
+  }
+
+  // For development, construct from window location
+  const protocol = window.location.protocol;
+  const host = window.location.hostname;
+  const port = import.meta.env.ARCHON_SERVER_PORT;
+
+  if (!port) {
+    throw new Error(
+      'ARCHON_SERVER_PORT environment variable is required. ' +
+      'Please set it in your environment variables. ' +
+      'Default value: 8181'
+    );
+  }
+
+  return `${protocol}//${host}:${port}`;
 }
 
 // Get the base path for API endpoints
