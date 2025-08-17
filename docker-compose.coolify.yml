@@ -26,9 +26,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./python/src:/app/src
       - ./python/tests:/app/tests
-    command: ["python", "-m", "uvicorn", "src.server.main:socket_app", "--host", "0.0.0.0", "--port", "${ARCHON_SERVER_PORT}", "--reload"]
+    command: ["python", "-m", "uvicorn", "src.server.main:socket_app", "--host", "0.0.0.0", "--port", "80", "--reload"]
     healthcheck:
-      test: ["CMD", "sh", "-c", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_SERVER_PORT}/health')\""
+      test: ["CMD", "sh", "-c", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:80/health')\""
       ]
       interval: 30s
       timeout: 10s
@@ -38,11 +38,11 @@ services:
       # Enable Traefik and bind to Coolify ingress network
       - traefik.enable=true
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      # Explicit service port for the API service (Traefik)
-      - traefik.http.services.archon-server.loadbalancer.server.port=${ARCHON_SERVER_PORT}
-      # Caddy (Coolify) - ensure upstream uses the correct internal port and network
+      # Explicit service port for the API service (Traefik/Caddy now on 80)
+      - traefik.http.services.archon-server.loadbalancer.server.port=80
+      # Caddy (Coolify)
       - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      - caddy_0.handle_path.0_reverse_proxy={{upstreams ${ARCHON_SERVER_PORT}}}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams 80}}
 
   archon-mcp:
     build:
@@ -71,8 +71,9 @@ services:
     depends_on:
       - archon-server
       - archon-agents
+    command: ["python", "-m", "uvicorn", "src.mcp.mcp_server:app", "--host", "0.0.0.0", "--port", "80", "--workers", "1"]
     healthcheck:
-      test: ["CMD", "sh", "-c", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', ${ARCHON_MCP_PORT})); s.close()\""
+      test: ["CMD", "sh", "-c", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', 80)); s.close()\""
       ]
       interval: 30s
       timeout: 10s
@@ -81,9 +82,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      - traefik.http.services.archon-mcp.loadbalancer.server.port=${ARCHON_MCP_PORT}
+      - traefik.http.services.archon-mcp.loadbalancer.server.port=80
       - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      - caddy_0.handle_path.0_reverse_proxy={{upstreams ${ARCHON_MCP_PORT}}}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams 80}}
 
   archon-agents:
     build:
@@ -115,9 +116,9 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      - traefik.http.services.archon-agents.loadbalancer.server.port=${ARCHON_AGENTS_PORT}
+      - traefik.http.services.archon-agents.loadbalancer.server.port=80
       - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      - caddy_0.handle_path.0_reverse_proxy={{upstreams ${ARCHON_AGENTS_PORT}}}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams 80}}
 
   frontend:
     build: ./archon-ui-main
@@ -128,8 +129,9 @@ services:
     networks:
       - app-network
       - coolify-ingress
+    command: ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "80"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -137,10 +139,10 @@ services:
       - traefik.enable=true
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       # Explicit frontend service port for Traefik
-      - traefik.http.services.frontend.loadbalancer.server.port=5173
-      # Caddy (Coolify) upstream for the frontend (Vite preview/dev on 5173)
+      - traefik.http.services.frontend.loadbalancer.server.port=80
+      # Caddy (Coolify) upstream for the frontend (now on 80)
       - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      - caddy_0.handle_path.0_reverse_proxy={{upstreams 5173}}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams 80}}
 
 networks:
   app-network:
