@@ -407,15 +407,11 @@ class MCPClientService {
         'Default value: 8051'
       );
     }
-
+    
     // Get the host from the API URL
     const apiUrl = getApiUrl();
     const url = new URL(apiUrl || `http://${window.location.hostname}:${mcpPort}`);
     const mcpUrl = `${url.protocol}//${url.hostname}:${mcpPort}/mcp`;
-    return this._createClient(mcpUrl);
-  }
-
-  private async _createClient(mcpUrl: string): Promise<MCPClient> {
     
     const archonConfig: MCPClientConfig = {
       name: 'Archon',
