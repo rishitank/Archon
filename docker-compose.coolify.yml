@@ -26,7 +26,8 @@ services:
       - ./python/tests:/app/tests
     command: ["python", "-m", "uvicorn", "src.server.main:socket_app", "--host", "0.0.0.0", "--port", "${ARCHON_SERVER_PORT}", "--reload"]
     healthcheck:
-      test: ["CMD", "sh", "-c", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_SERVER_PORT}/health')\""]
+      test: ["CMD", "sh", "-c", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_SERVER_PORT}/health')\""
+      ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -34,7 +35,7 @@ services:
     labels:
       # Enable Traefik and bind to Coolify ingress network
       - traefik.enable=true
-      - traefik.docker.network=${COOLIFY_RESOURCE_UUID}
+      - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       # Explicit service port for the API service
       - traefik.http.services.archon-server.loadbalancer.server.port=${ARCHON_SERVER_PORT}
 
@@ -64,14 +65,15 @@ services:
       - archon-server
       - archon-agents
     healthcheck:
-      test: ["CMD", "sh", "-c", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', ${ARCHON_MCP_PORT})); s.close()\""]
+      test: ["CMD", "sh", "-c", "python -c \"import socket; s=socket.socket(); s.connect(('localhost', ${ARCHON_MCP_PORT})); s.close()\""
+      ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
     labels:
       - traefik.enable=true
-      - traefik.docker.network=${COOLIFY_RESOURCE_UUID}
+      - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       - traefik.http.services.archon-mcp.loadbalancer.server.port=${ARCHON_MCP_PORT}
 
   archon-agents:
@@ -93,14 +95,15 @@ services:
       - app-network
       - coolify-ingress
     healthcheck:
-      test: ["CMD", "sh", "-c", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_AGENTS_PORT}/health')\""]
+      test: ["CMD", "sh", "-c", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_AGENTS_PORT}/health')\""
+      ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     labels:
       - traefik.enable=true
-      - traefik.docker.network=${COOLIFY_RESOURCE_UUID}
+      - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       - traefik.http.services.archon-agents.loadbalancer.server.port=${ARCHON_AGENTS_PORT}
 
   frontend:
@@ -119,7 +122,7 @@ services:
       retries: 3
     labels:
       - traefik.enable=true
-      - traefik.docker.network=${COOLIFY_RESOURCE_UUID}
+      - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       # Explicit frontend service port for Traefik
       - traefik.http.services.frontend.loadbalancer.server.port=5173
 
@@ -127,7 +130,7 @@ networks:
   app-network:
     driver: bridge
   coolify-ingress:
-    # Alias for the Coolify-managed ingress network; set via env
-    name: ${COOLIFY_RESOURCE_UUID}
+    # Ingress network name can be set via COOLIFY_INGRESS_NETWORK; defaults to 'coolify'
+    name: ${COOLIFY_INGRESS_NETWORK:-coolify}
     external: true
 
