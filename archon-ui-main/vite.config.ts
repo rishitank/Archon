@@ -11,7 +11,7 @@ import type { ConfigEnv, UserConfig } from 'vite';
 export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   // Load environment variables
   const env = loadEnv(mode, process.cwd(), '');
-  
+
   // Get host and port from environment variables or use defaults
   // For internal Docker communication, use the service name
   // For external access, use the HOST from environment
@@ -20,7 +20,14 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   const externalHost = process.env.HOST || 'localhost';  // Host for external access
   const host = isDocker ? internalHost : externalHost;
   const port = process.env.ARCHON_SERVER_PORT || env.ARCHON_SERVER_PORT || '8181';
-  
+
+  // Allowed hosts for Vite dev server (Vite 5 host check)
+  // Provide a comma-separated ALLOWED_HOSTS env (e.g., "archon.tanksterai.com,coolify.tanksterai.com")
+  const allowedHostsEnv = process.env.ALLOWED_HOSTS || env.ALLOWED_HOSTS || '';
+  const allowedHosts = allowedHostsEnv
+    ? allowedHostsEnv.split(',').map(h => h.trim()).filter(Boolean)
+    : (true as unknown as string[] | true); // true = allow all
+
   return {
     plugins: [
       react(),
@@ -280,6 +287,7 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
       host: '0.0.0.0', // Listen on all network interfaces with explicit IP
       port: 5173, // Match the port expected in Docker
       strictPort: true, // Exit if port is in use
+      allowedHosts, // Allow Coolify-proxied hostnames (e.g., archon.tanksterai.com)
       proxy: {
         '/api': {
           target: `http://${host}:${port}`,
