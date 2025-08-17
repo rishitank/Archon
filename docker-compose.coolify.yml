@@ -20,6 +20,8 @@ services:
     networks:
       - app-network
       - coolify-ingress
+    expose:
+      - "${ARCHON_SERVER_PORT}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./python/src:/app/src
@@ -64,6 +66,8 @@ services:
     networks:
       - app-network
       - coolify-ingress
+    expose:
+      - "${ARCHON_MCP_PORT}"
     depends_on:
       - archon-server
       - archon-agents
@@ -99,6 +103,8 @@ services:
     networks:
       - app-network
       - coolify-ingress
+    expose:
+      - "${ARCHON_AGENTS_PORT}"
     healthcheck:
       test: ["CMD", "sh", "-c", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_AGENTS_PORT}/health')\""
       ]
