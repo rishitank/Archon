@@ -49,7 +49,9 @@ class MCPServerManager:
     """Manages the MCP Docker container lifecycle."""
 
     def __init__(self):
-        self.container_name = "Archon-MCP"  # Container name from docker-compose.yml
+        import os
+        # Allow overriding the container name via env to support platforms like Coolify
+        self.container_name = os.getenv("MCP_CONTAINER_NAME", "Archon-MCP")
         self.docker_client = None
         self.container = None
         self.status: str = "stopped"
