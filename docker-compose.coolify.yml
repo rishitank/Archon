@@ -36,8 +36,11 @@ services:
       # Enable Traefik and bind to Coolify ingress network
       - traefik.enable=true
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
-      # Explicit service port for the API service
+      # Explicit service port for the API service (Traefik)
       - traefik.http.services.archon-server.loadbalancer.server.port=${ARCHON_SERVER_PORT}
+      # Caddy (Coolify) - ensure upstream uses the correct internal port and network
+      - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams ${ARCHON_SERVER_PORT}}}
 
   archon-mcp:
     build:
@@ -75,6 +78,8 @@ services:
       - traefik.enable=true
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       - traefik.http.services.archon-mcp.loadbalancer.server.port=${ARCHON_MCP_PORT}
+      - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams ${ARCHON_MCP_PORT}}}
 
   archon-agents:
     build:
@@ -105,6 +110,8 @@ services:
       - traefik.enable=true
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       - traefik.http.services.archon-agents.loadbalancer.server.port=${ARCHON_AGENTS_PORT}
+      - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams ${ARCHON_AGENTS_PORT}}}
 
   frontend:
     build: ./archon-ui-main
@@ -125,6 +132,9 @@ services:
       - traefik.docker.network=${COOLIFY_INGRESS_NETWORK:-coolify}
       # Explicit frontend service port for Traefik
       - traefik.http.services.frontend.loadbalancer.server.port=5173
+      # Caddy (Coolify) upstream for the frontend (Vite preview/dev on 5173)
+      - caddy_ingress_network=${COOLIFY_INGRESS_NETWORK:-coolify}
+      - caddy_0.handle_path.0_reverse_proxy={{upstreams 5173}}
 
 networks:
   app-network:
