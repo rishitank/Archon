@@ -1,7 +1,7 @@
 # Agents Service Dependencies - ONLY PydanticAI agents
 # This container should be lightweight (~200MB)
 
-# PydanticAI for agent framework (pin to version supporting result_type)
+# PydanticAI for agent framework (pin to 0.0.55; use output_type for structured results)
 pydantic-ai==0.0.55
 pydantic>=2.0.0
 
