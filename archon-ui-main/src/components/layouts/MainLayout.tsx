@@ -42,8 +42,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         
-        // Check if backend is responding with a simple health check
-        const response = await fetch(`${credentialsService['baseUrl']}/health`, {
+        // Check if backend is responding via proxied API route
+        const response = await fetch(`/api/health`, {
           method: 'GET',
           signal: controller.signal
         });
