@@ -22,11 +22,12 @@ export default defineConfig(({ mode }: ConfigEnv): UserConfig => {
   const port = process.env.ARCHON_SERVER_PORT || env.ARCHON_SERVER_PORT || '8181';
 
   // Allowed hosts for Vite dev server (Vite 5 host check)
-  // Provide a comma-separated ALLOWED_HOSTS env (e.g., "example.com,staging.example.com")
+  // Provide a comma-separated ALLOWED_HOSTS env (e.g., "example.com,staging.example.com").
+  // Security: default to localhost-only to avoid disabling host checks by default.
   const allowedHostsEnv = process.env.ALLOWED_HOSTS || env.ALLOWED_HOSTS || '';
   const allowedHosts = allowedHostsEnv
     ? allowedHostsEnv.split(',').map(h => h.trim()).filter(Boolean)
-    : (true as unknown as string[] | true); // true = allow all
+    : ["localhost", "127.0.0.1"];
 
   return {
     plugins: [
