@@ -156,11 +156,15 @@ class MCPServerManager:
             container_status = self._get_container_status()
 
             if container_status == "not_found":
-                mcp_logger.error(f"Container {self.container_name} not found")
+                mcp_logger.error("MCP container not found during start request")
                 return {
                     "success": False,
                     "status": "not_found",
-                    "message": f"MCP container {self.container_name} not found. Run docker-compose up -d archon-mcp",
+                    "message": (
+                        "MCP container not found. Ensure the 'archon-mcp' service is running. "
+                        "Try: `docker compose up -d archon-mcp`. If using a different project/name, verify the container's name contains 'archon-mcp' "
+                        "or set container_name to 'Archon-MCP' in compose."
+                    ),
                 }
 
             if container_status == "running":
