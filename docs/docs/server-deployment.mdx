@@ -117,7 +117,7 @@ services:
       dockerfile: Dockerfile.server
     container_name: Archon-Server
     ports:
-      - "8080:8080"
+      - "${ARCHON_SERVER_PORT}:${ARCHON_SERVER_PORT}"
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
@@ -130,7 +130,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_SERVER_PORT}/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -143,7 +143,7 @@ services:
       dockerfile: Dockerfile.mcp
     container_name: archon-mcp
     ports:
-      - "8051:8051"
+      - "${ARCHON_MCP_PORT}:${ARCHON_MCP_PORT}"
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
@@ -157,7 +157,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', 8051)); s.close()"]
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', int(__import__('os').environ.get('ARCHON_MCP_PORT','8051')))); s.close()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -169,7 +169,7 @@ services:
       dockerfile: Dockerfile.agents
     container_name: archon-agents
     ports:
-      - "8052:8052"
+      - "${ARCHON_AGENTS_PORT}:${ARCHON_AGENTS_PORT}"
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
@@ -182,7 +182,7 @@ services:
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8052/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:${ARCHON_AGENTS_PORT}/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -192,9 +192,9 @@ services:
     build: ./archon-ui-main
     container_name: archon-frontend
     ports:
-      - "3737:5173"
+      - "${ARCHON_UI_PORT}:5173"
     environment:
-      - VITE_API_URL=http://localhost:8080
+      - VITE_API_URL=http://localhost:${ARCHON_SERVER_PORT}
     networks:
       - app-network
     healthcheck:
@@ -457,11 +457,11 @@ DOCS_PORT=3838
    ```
 
 5. **Access the application**
-   - Web UI: http://localhost:3737
-   - API Docs: http://localhost:8080/docs
-   - MCP Connection: http://localhost:8051/sse
-   - Agents API: http://localhost:8052/docs
-   - Documentation: http://localhost:3838
+   - Web UI: http://localhost:${ARCHON_UI_PORT}
+   - API Docs: http://localhost:${ARCHON_SERVER_PORT}/docs
+   - MCP Connection: http://localhost:${ARCHON_MCP_PORT}/sse
+   - Agents API: http://localhost:${ARCHON_AGENTS_PORT}/docs
+   - Documentation: http://localhost:${ARCHON_DOCS_PORT}
 
 ## 📈 Performance Optimization
 
@@ -606,9 +606,9 @@ services:
 
 ### Service Health Endpoints
 
-- **Server**: `http://localhost:8080/health`
-- **MCP**: `http://localhost:8051/sse` (SSE endpoint)
-- **Agents**: `http://localhost:8052/health`
+- **Server**: `http://localhost:${ARCHON_SERVER_PORT}/health`
+- **MCP**: `http://localhost:${ARCHON_MCP_PORT}/sse` (SSE endpoint)
+- **Agents**: `http://localhost:${ARCHON_AGENTS_PORT}/health`
 
 ### Docker Health Checks
 
@@ -666,12 +666,12 @@ print('Database connected successfully')
 
 ```bash
 # Check for port usage
-lsof -i :8080
-netstat -tulpn | grep 8080
+lsof -i :${ARCHON_SERVER_PORT}
+netstat -tulpn | grep ${ARCHON_SERVER_PORT}
 
 # Use alternative ports in .env
-API_PORT=8090
-MCP_PORT=8061
+ARCHON_SERVER_PORT=8090
+ARCHON_MCP_PORT=8061
 ```
 
 ### Serve Frontend in Production (host-agnostic)
