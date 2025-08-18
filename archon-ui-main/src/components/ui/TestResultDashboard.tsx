@@ -307,20 +307,38 @@ export const TestResultDashboard: React.FC<TestResultDashboardProps> = ({
       if (testResults.status === 'fulfilled') {
         setResults(testResults.value);
       } else {
-        // Treat 404 (no results yet) as empty state; suppress noisy console error
+        // Treat 404/204 (no results yet) as empty state; suppress noisy console error
         const reason = testResults.reason as any;
-        const status = reason?.status || reason?.response?.status;
-        if (status === 404 || /404/.test(String(reason))) {
+        const status = reason?.status ?? reason?.response?.status;
+        const msg = reason?.message ?? (typeof reason === 'string' ? reason : undefined);
+        const isNotFound = Number(status) === 404 || Number(status) === 204 || (msg && /(\b404\b|\bNot\s*Found\b)/i.test(msg));
+        if (isNotFound) {
           setResults(null);
+          setCoverage(null);
         } else {
-          console.warn('Failed to load test results:', testResults.reason);
+          setError(msg || 'Failed to load test results');
+          console.warn('Failed to load test results:', reason);
         }
       }
 
       if (coverageData.status === 'fulfilled' && coverageData.value) {
         setCoverage(coverageData.value);
       } else if (showCoverage) {
-        console.warn('Failed to load coverage data:', coverageData.status === 'rejected' ? coverageData.reason : 'No data');
+        if (coverageData.status === 'rejected') {
+          const reason: any = coverageData.reason;
+          const status = reason?.status ?? reason?.response?.status;
+          const msg = reason?.message ?? (typeof reason === 'string' ? reason : undefined);
+          const isNotFound = Number(status) === 404 || Number(status) === 204 || (msg && /(\b404\b|\bNot\s*Found\b)/i.test(msg));
+          if (isNotFound) {
+            setCoverage(null);
+          } else {
+            setError(msg || 'Failed to load coverage data');
+            console.warn('Failed to load coverage data:', reason);
+          }
+        } else {
+          // fulfilled with null -> treat as empty
+          setCoverage(null);
+        }
       }
 
       setLastRefresh(new Date());

@@ -4,6 +4,7 @@ export interface ServerStatus {
   status: 'running' | 'starting' | 'stopped' | 'stopping';
   uptime: number | null;
   logs: string[];
+  container_status?: 'docker_unavailable' | string;
 }
 
 export interface ServerResponse {

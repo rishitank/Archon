@@ -20,8 +20,7 @@ logger = logging.getLogger(__name__)
 # Create router with internal prefix
 router = APIRouter(prefix="/internal", tags=["internal"])
 
-# Simple IP-based access control for internal endpoints
-# Note: Keep for future extensibility; current logic uses RFC1918 detection below
+# Deprecated: retained only as a note for future extensibility; not used by access control.
 ALLOWED_INTERNAL_IPS = [
     "127.0.0.1",  # Localhost
     "172.18.0.0/16",  # Docker network range (example)
@@ -31,13 +30,13 @@ ALLOWED_INTERNAL_IPS = [
 
 
 def is_internal_request(request: Request) -> bool:
-    """Check if request is from an internal source (RFC1918 or loopback)."""
+    """Check if request is from an internal source (private/ULA or loopback)."""
     client_host = request.client.host if request.client else None
     if not client_host:
         return False
     try:
         ip = ip_address(client_host)
-        # Allow private ranges (10/8, 172.16/12, 192.168/16) and loopback (::1, 127.0.0.0/8)
+        # Allow private/ULA ranges and loopback (::1, 127.0.0.0/8)
         return ip.is_private or ip.is_loopback
     except ValueError:
         # Not an IP address (e.g., hostname) – deny by default
@@ -90,8 +89,11 @@ async def get_agent_credentials(request: Request) -> dict[str, Any]:
             "AGENT_MAX_RETRIES": await credential_service.get_credential(
                 "AGENT_MAX_RETRIES", default="3"
             ),
-            # MCP endpoint
-            "MCP_SERVICE_URL": f"http://archon-mcp:{os.getenv('ARCHON_MCP_PORT')}",
+            # MCP endpoint (configurable host/port)
+            "MCP_SERVICE_URL": "http://{host}:{port}".format(
+                host=os.getenv("MCP_SERVICE_HOST", "archon-mcp"),
+                port=os.getenv("ARCHON_MCP_PORT", "8051"),
+            ),
             # Additional settings
             "LOG_LEVEL": await credential_service.get_credential("LOG_LEVEL", default="INFO"),
         }
