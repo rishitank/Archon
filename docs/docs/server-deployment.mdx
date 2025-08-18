@@ -674,6 +674,100 @@ API_PORT=8090
 MCP_PORT=8061
 ```
 
+### Serve Frontend in Production (host-agnostic)
+
+Use the production compose overlay to build the frontend and serve the static bundle. This keeps browser requests on the same origin and relies on your reverse proxy to route to backend services.
+
+```bash
+# Build and run production stack (frontend served via Vite preview)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+
+# Or use only the production file
+# docker compose -f docker-compose.prod.yml up --build -d
+```
+
+Notes:
+- No VITE_API_URL is required; the UI uses relative paths.
+- Ensure all services share the same user-defined Docker network (default: app-network).
+- Add reverse-proxy routes to forward /api and /mcp to the backend containers.
+- Socket.IO uses WebSocket upgrade on /socket.io.
+
+### Reverse Proxy Examples (non‑platform specific)
+
+#### Nginx
+```nginx
+server {
+  listen 80;
+  server_name your.domain;
+
+  # UI
+  location / {
+    proxy_pass http://frontend:5173;
+  }
+
+  # API
+  location /api/ {
+    proxy_pass http://archon-server:8181;
+  }
+
+  # MCP (SSE/HTTP)
+  location /mcp/ {
+    proxy_pass http://archon-mcp:8051;
+  }
+
+  # Socket.IO (WebSocket upgrade)
+  location /socket.io/ {
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+    proxy_pass http://archon-server:8181;
+  }
+}
+```
+
+#### Caddy
+```caddyfile
+your.domain {
+  reverse_proxy / archon-frontend:5173
+  reverse_proxy /api* archon-server:8181
+  reverse_proxy /mcp* archon-mcp:8051
+  reverse_proxy /socket.io* archon-server:8181
+}
+```
+
+#### Traefik (dynamic file example)
+```yaml
+http:
+  routers:
+    ui:
+      rule: Host(`your.domain`)
+      service: ui
+    api:
+      rule: Host(`your.domain`) && PathPrefix(`/api`)
+      service: api
+    mcp:
+      rule: Host(`your.domain`) && PathPrefix(`/mcp`)
+      service: mcp
+  services:
+    ui:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:5173"
+    api:
+      loadBalancer:
+        servers:
+          - url: "http://archon-server:8181"
+    mcp:
+      loadBalancer:
+        servers:
+          - url: "http://archon-mcp:8051"
+```
+
+Best practices:
+- Terminate TLS at the proxy and serve the UI over HTTPS. Ensure backend routes are also HTTPS or proxied same-origin to avoid mixed content.
+- Keep timeouts generous for SSE/WebSockets (MCP and Socket.IO).
+- In production, prefer read-only mounts and resource limits (see examples below).
+
 ## 🚢 Production Deployment
 
 ### 1. Use Production Images
@@ -711,7 +805,7 @@ services:
 
 ---
 
-**Next Steps**: 
+**Next Steps**:
 - Learn about [Server Monitoring](./server-monitoring) with Logfire
 - Review [Server Services](./server-services) documentation
 - Explore the [API Reference](./api-reference) for endpoints
