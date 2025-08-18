@@ -224,7 +224,7 @@ export const MCPPage = () => {
       return '// Configuration not available. Please ensure the server is running.';
     }
 
-    const mcpUrl = `http://${config.host}:${config.port}/mcp`;
+    const mcpUrl = `${config.transport}://${config.host}:${config.port}/mcp`;
 
     switch(ide) {
       case 'claudecode':
@@ -455,7 +455,7 @@ export const MCPPage = () => {
                 <div className="flex items-center justify-between">
                   <div
                     className="flex items-center gap-3 cursor-help"
-                    title={process.env.NODE_ENV === 'development' ?
+                    title={import.meta.env.DEV ?
                       `Debug Info:\nStatus: ${serverStatus.status}\nConfig: ${config ? 'loaded' : 'null'}\n${config ? `Details: ${JSON.stringify(config, null, 2)}` : ''}` :
                       undefined
                     }
