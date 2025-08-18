@@ -676,14 +676,18 @@ ARCHON_MCP_PORT=8061
 
 ### Serve Frontend in Production (host-agnostic)
 
-Use the production compose overlay to build the frontend and serve the static bundle. This keeps browser requests on the same origin and relies on your reverse proxy to route to backend services.
+Use the production compose file to build the frontend and serve the static bundle. This keeps browser requests on the same origin and relies on your reverse proxy to route to backend services.
 
 ```bash
 # Build and run production stack (frontend served via Vite preview)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+docker compose -f docker-compose.prod.yml up --build -d
+```
 
-# Or use only the production file
-# docker compose -f docker-compose.prod.yml up --build -d
+For development, use the dev compose file only:
+
+```bash
+# Dev (Vite dev server with hot reload)
+docker compose up -d
 ```
 
 Notes:
