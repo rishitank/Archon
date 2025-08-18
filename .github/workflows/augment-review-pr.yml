@@ -14,6 +14,10 @@ jobs:
     runs-on:
       - ubuntu-latest
     if: github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name && github.event.pull_request.draft == false
+    timeout-minutes: 10
+    concurrency:
+      group: review-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - name: Generate PR Review
         uses: augmentcode/review-pr@v0

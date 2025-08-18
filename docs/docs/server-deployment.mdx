@@ -743,6 +743,10 @@ server {
 }
 ```
 
+> Note
+> - If your reverse proxy runs inside the same Docker network, target services by name and use container ports (e.g., archon-server:8080, archon-mcp:8051).
+> - If your proxy runs on the host outside Docker, use the published host ports (e.g., localhost:${ARCHON_SERVER_PORT}, localhost:${ARCHON_MCP_PORT}).
+
 #### Caddy
 ```caddyfile
 your.domain {
