@@ -707,12 +707,20 @@ server {
 
   # API
   location /api/ {
-    proxy_pass http://archon-server:8181;
+    proxy_pass http://archon-server:8080;
   }
 
   # MCP (SSE/HTTP)
   location /mcp/ {
     proxy_pass http://archon-mcp:8051;
+    # SSE: avoid buffering and keep long-lived connections
+    proxy_buffering off;
+    proxy_set_header Cache-Control "no-cache";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 1h;
   }
 
   # Socket.IO (WebSocket upgrade)
@@ -720,7 +728,13 @@ server {
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "Upgrade";
-    proxy_pass http://archon-server:8181;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 1h;
+    proxy_send_timeout 1h;
+    proxy_pass http://archon-server:8080;
   }
 }
 ```
@@ -728,10 +742,10 @@ server {
 #### Caddy
 ```caddyfile
 your.domain {
-  reverse_proxy / archon-frontend:5173
-  reverse_proxy /api* archon-server:8181
+  reverse_proxy / frontend:5173
+  reverse_proxy /api* archon-server:8080
   reverse_proxy /mcp* archon-mcp:8051
-  reverse_proxy /socket.io* archon-server:8181
+  reverse_proxy /socket.io* archon-server:8080
 }
 ```
 
@@ -756,7 +770,7 @@ http:
     api:
       loadBalancer:
         servers:
-          - url: "http://archon-server:8181"
+          - url: "http://archon-server:8080"
     mcp:
       loadBalancer:
         servers:

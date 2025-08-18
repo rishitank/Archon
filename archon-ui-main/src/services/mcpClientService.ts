@@ -89,7 +89,7 @@ const MCPToolSchema = z.object({
 export type MCPTool = z.infer<typeof MCPToolSchema>;
 export type MCPParameter = z.infer<typeof MCPParameterSchema>;
 
-import { getApiUrl } from '../config/api';
+
 
 /**
  * MCP Client Service - Universal MCP client that connects to any MCP servers
@@ -398,26 +398,25 @@ class MCPClientService {
    * Create Archon MCP client using Streamable HTTP transport
    */
   async createArchonClient(): Promise<MCPClient> {
-    // Require ARCHON_MCP_PORT to be set
-    const mcpPort = import.meta.env.ARCHON_MCP_PORT;
-    if (!mcpPort) {
-      throw new Error(
-        'ARCHON_MCP_PORT environment variable is required. ' +
-        'Please set it in your environment variables. ' +
-        'Default value: 8051'
-      );
-    }
-    
-    // Get the host from the API URL
-    const apiUrl = getApiUrl();
-    const url = new URL(apiUrl || `http://${window.location.hostname}:${mcpPort}`);
-    const mcpUrl = `${url.protocol}//${url.hostname}:${mcpPort}/mcp`;
-    
+    // Prefer VITE-prefixed env; fallback to default 8051
+    const mcpPort = import.meta.env.VITE_ARCHON_MCP_PORT || '8051';
+
+    // Build base from configured API URL if provided, otherwise current origin
+    const apiBase = getApiUrl();
+    const base = new URL(
+      apiBase || '/',
+      typeof window !== 'undefined' ? window.location.origin : undefined
+    );
+
+    // Construct MCP URL on same host with configured/Default port, preserving IPv6 formatting
+    const mcpUrlObj = new URL('/mcp', base);
+    mcpUrlObj.port = String(mcpPort);
+
     const archonConfig: MCPClientConfig = {
       name: 'Archon',
       transport_type: 'http',
       connection_config: {
-        url: mcpUrl
+        url: mcpUrlObj.toString()
       },
       auto_connect: true,
       health_check_interval: 30,
