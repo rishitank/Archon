@@ -84,7 +84,7 @@ class MCPServerService {
   // ========================================
 
   async startServer(): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}${ApiRoutes.McpStart}`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_START}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -98,7 +98,7 @@ class MCPServerService {
   }
 
   async stopServer(): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}${ApiRoutes.McpStop}`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_STOP}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -112,7 +112,7 @@ class MCPServerService {
   }
 
   async getStatus(): Promise<ServerStatus> {
-    const response = await fetch(`${this.baseUrl}${ApiRoutes.McpStatus}`);
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_STATUS}`);
 
     if (!response.ok) {
       throw new Error('Failed to get server status');
@@ -122,7 +122,7 @@ class MCPServerService {
   }
 
   async getConfiguration(): Promise<ServerConfig> {
-    const response = await fetch(`${this.baseUrl}${ApiRoutes.McpConfig}`);
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_CONFIG}`);
 
     if (!response.ok) {
       // Return default config if endpoint doesn't exist yet
@@ -137,7 +137,7 @@ class MCPServerService {
   }
 
   async updateConfiguration(config: Partial<ServerConfig>): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}${ApiRoutes.McpConfig}`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_CONFIG}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
@@ -157,7 +157,7 @@ class MCPServerService {
       params.append('limit', options.limit.toString());
     }
 
-    const response = await fetch(`${this.baseUrl}${ApiRoutes.McpLogs}?${params}`);
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_LOGS}?${params}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch logs');
@@ -168,7 +168,7 @@ class MCPServerService {
   }
 
   async clearLogs(): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}${ApiRoutes.McpLogs}`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_LOGS}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -189,7 +189,7 @@ class MCPServerService {
     // Close existing connection if any
     this.disconnectLogs();
 
-    const ws = new WebSocket(`${getWebSocketUrl()}${ApiRoutes.McpLogsStream}`);
+    const ws = new WebSocket(`${getWebSocketUrl()}${ApiRoutes.MCP_LOGS_STREAM}`);
     this.logWebSocket = ws;
 
     ws.onmessage = (event) => {
