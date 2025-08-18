@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Copy, Clock, Server, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { Play, Square, Copy, Clock, Server, AlertCircle, CheckCircle, Loader, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -13,27 +13,28 @@ import { IDEGlobalRules } from '../components/settings/IDEGlobalRules';
 type SupportedIDE = 'windsurf' | 'cursor' | 'claudecode' | 'cline' | 'kiro' | 'augment';
 
 /**
+
  * MCP Dashboard Page Component
- * 
+ *
  * This is the main dashboard for managing the MCP (Model Context Protocol) server.
  * It provides a comprehensive interface for:
- * 
+ *
  * 1. Server Control Tab:
  *    - Start/stop the MCP server
  *    - Monitor server status and uptime
  *    - View and copy connection configuration
  *    - Real-time log streaming via WebSocket
  *    - Historical log viewing and clearing
- * 
+ *
  * 2. MCP Clients Tab:
  *    - Interactive client management interface
  *    - Tool discovery and testing
  *    - Real-time tool execution
  *    - Parameter input and result visualization
- * 
+ *
  * The page uses a tab-based layout with preserved server functionality
  * and enhanced client management capabilities.
- * 
+ *
  * @component
  */
 export const MCPPage = () => {
@@ -92,7 +93,7 @@ export const MCPPage = () => {
       mcpServerService.streamLogs((log) => {
         setLogs(prev => [...prev, log]);
       }, { autoReconnect: true });
-      
+
       // Ensure configuration is loaded when server is running
       if (!config) {
         loadConfiguration();
@@ -192,7 +193,7 @@ export const MCPPage = () => {
 
   const handleCopyConfig = () => {
     if (!config) return;
-    
+
     const configText = getConfigForIDE(selectedIDE);
     navigator.clipboard.writeText(configText);
     showToast('Configuration copied to clipboard', 'success');
@@ -200,11 +201,11 @@ export const MCPPage = () => {
 
   const generateCursorDeeplink = () => {
     if (!config) return '';
-    
+
     const httpConfig = {
       url: `http://${config.host}:${config.port}/mcp`
     };
-    
+
     const configString = JSON.stringify(httpConfig);
     const base64Config = btoa(configString);
     return `cursor://anysphere.cursor-deeplink/mcp/install?name=archon&config=${base64Config}`;
@@ -222,9 +223,9 @@ export const MCPPage = () => {
     if (!config || !config.host || !config.port) {
       return '// Configuration not available. Please ensure the server is running.';
     }
-    
+
     const mcpUrl = `http://${config.host}:${config.port}/mcp`;
-    
+
     switch(ide) {
       case 'claudecode':
         return JSON.stringify({
@@ -232,7 +233,7 @@ export const MCPPage = () => {
           transport: "http",
           url: mcpUrl
         }, null, 2);
-        
+
       case 'cline':
       case 'kiro':
         // Cline and Kiro use stdio transport with mcp-remote
@@ -244,7 +245,7 @@ export const MCPPage = () => {
             }
           }
         }, null, 2);
-        
+
       case 'windsurf':
         return JSON.stringify({
           mcpServers: {
@@ -253,7 +254,7 @@ export const MCPPage = () => {
             }
           }
         }, null, 2);
-        
+
       case 'cursor':
       case 'augment':
         return JSON.stringify({
@@ -263,7 +264,7 @@ export const MCPPage = () => {
             }
           }
         }, null, 2);
-        
+
       default:
         return '';
     }
@@ -441,21 +442,21 @@ export const MCPPage = () => {
         <>
           {/* Server Control + Server Logs */}
           <motion.div className="grid grid-cols-1 lg:grid-cols-2 gap-6" variants={itemVariants}>
-            
+
             {/* Left Column: Archon MCP Server */}
             <div className="flex flex-col">
               <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
                 <Server className="mr-2 text-blue-500" size={20} />
                 Archon MCP Server
               </h2>
-              
+
               <Card accentColor="blue" className="space-y-6 flex-1">
                 {/* Status Display */}
                 <div className="flex items-center justify-between">
-                  <div 
-                    className="flex items-center gap-3 cursor-help" 
-                    title={process.env.NODE_ENV === 'development' ? 
-                      `Debug Info:\nStatus: ${serverStatus.status}\nConfig: ${config ? 'loaded' : 'null'}\n${config ? `Details: ${JSON.stringify(config, null, 2)}` : ''}` : 
+                  <div
+                    className="flex items-center gap-3 cursor-help"
+                    title={process.env.NODE_ENV === 'development' ?
+                      `Debug Info:\nStatus: ${serverStatus.status}\nConfig: ${config ? 'loaded' : 'null'}\n${config ? `Details: ${JSON.stringify(config, null, 2)}` : ''}` :
                       undefined
                     }
                   >
@@ -476,7 +477,7 @@ export const MCPPage = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Control Buttons */}
                   <div className="flex gap-2 items-center">
                     {serverStatus.status === 'stopped' ? (
@@ -495,7 +496,11 @@ export const MCPPage = () => {
                           </>
                         ) : (
                           <>
-                            <Play className="w-4 h-4 mr-2 inline" />
+                            {serverStatus.container_status === 'docker_unavailable' ? (
+                              <Lock className="w-4 h-4 mr-2 inline" />
+                            ) : (
+                              <Play className="w-4 h-4 mr-2 inline" />
+                            )}
                             Start Server
                           </>
                         )}
@@ -516,7 +521,11 @@ export const MCPPage = () => {
                           </>
                         ) : (
                           <>
-                            <Square className="w-4 h-4 mr-2 inline" />
+                            {serverStatus.container_status === 'docker_unavailable' ? (
+                              <Lock className="w-4 h-4 mr-2 inline" />
+                            ) : (
+                              <Square className="w-4 h-4 mr-2 inline" />
+                            )}
                             Stop Server
                           </>
                         )}
@@ -545,7 +554,7 @@ export const MCPPage = () => {
                         Copy
                       </Button>
                     </div>
-                    
+
                     {/* IDE Selection Tabs */}
                     <div className="mb-4">
                       <div className="flex flex-wrap border-b border-gray-200 dark:border-zinc-700 mb-3">
@@ -629,7 +638,7 @@ export const MCPPage = () => {
                         {getConfigForIDE(selectedIDE)}
                       </pre>
                       <p className="text-xs text-gray-500 dark:text-zinc-500 mt-3 font-sans">
-                        {selectedIDE === 'cursor' 
+                        {selectedIDE === 'cursor'
                           ? 'Copy this configuration and add it to ~/.cursor/mcp.json'
                           : selectedIDE === 'windsurf'
                           ? 'Copy this configuration and add it to your Windsurf MCP settings'
@@ -645,7 +654,7 @@ export const MCPPage = () => {
                         }
                       </p>
                     </div>
-                    
+
                     {/* One-click install button for Cursor */}
                     {selectedIDE === 'cursor' && serverStatus.status === 'running' && (
                       <div className="mt-4">
@@ -674,11 +683,11 @@ export const MCPPage = () => {
                 <Clock className="mr-2 text-purple-500" size={20} />
                 Server Logs
               </h2>
-              
+
               <Card accentColor="purple" className="h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm text-gray-600 dark:text-zinc-400">
-                    {logs.length > 0 
+                    {logs.length > 0
                       ? `Showing ${logs.length} log entries`
                       : 'No logs available'
                     }
@@ -692,15 +701,15 @@ export const MCPPage = () => {
                     Clear Logs
                   </Button>
                 </div>
-                
-                <div 
+
+                <div
                   id="mcp-logs-container"
                   ref={logsContainerRef}
                   className="bg-gray-50 dark:bg-black border border-gray-200 dark:border-zinc-900 rounded-md p-4 flex-1 overflow-y-auto font-mono text-sm max-h-[600px]"
                 >
                   {logs.length === 0 ? (
                     <p className="text-gray-500 dark:text-zinc-500 text-center py-8">
-                      {serverStatus.status === 'running' 
+                      {serverStatus.status === 'running'
                         ? 'Waiting for log entries...'
                         : 'Start the server to see logs'
                       }
@@ -710,8 +719,8 @@ export const MCPPage = () => {
                       <div
                         key={index}
                         className={`py-1.5 border-b border-gray-100 dark:border-zinc-900 last:border-0 ${
-                          typeof log !== 'string' && log.level === 'ERROR' 
-                            ? 'text-red-600 dark:text-red-400' 
+                          typeof log !== 'string' && log.level === 'ERROR'
+                            ? 'text-red-600 dark:text-red-400'
                             : typeof log !== 'string' && log.level === 'WARNING'
                             ? 'text-yellow-600 dark:text-yellow-400'
                             : 'text-gray-600 dark:text-zinc-400'
