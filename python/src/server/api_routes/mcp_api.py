@@ -368,8 +368,6 @@ class MCPServerManager:
                 self.container.reload()
                 started_at = self.container.attrs["State"]["StartedAt"]
                 # Parse ISO format datetime
-                from datetime import datetime
-
                 started_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
                 uptime = int((datetime.now(started_time.tzinfo) - started_time).total_seconds())
             except Exception:
