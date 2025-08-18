@@ -40,7 +40,8 @@ export const MCPPage = () => {
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
     status: 'stopped',
     uptime: null,
-    logs: []
+    logs: [],
+    container_status: undefined,
   });
   const [config, setConfig] = useState<ServerConfig | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -463,6 +464,11 @@ export const MCPPage = () => {
                       <p className={`font-semibold ${getStatusColor()}`}>
                         Status: {serverStatus.status.charAt(0).toUpperCase() + serverStatus.status.slice(1)}
                       </p>
+                      {serverStatus.container_status === 'docker_unavailable' && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Docker control disabled; status derived via network probe. Start/Stop requires Docker permissions.
+                        </p>
+                      )}
                       {serverStatus.uptime !== null && (
                         <p className="text-sm text-gray-600 dark:text-zinc-400">
                           Uptime: {formatUptime(serverStatus.uptime)}
@@ -476,10 +482,11 @@ export const MCPPage = () => {
                     {serverStatus.status === 'stopped' ? (
                       <Button
                         onClick={handleStartServer}
-                        disabled={isStarting}
+                        disabled={isStarting || serverStatus.container_status === 'docker_unavailable'}
                         variant="primary"
                         accentColor="green"
                         className="shadow-emerald-500/20 shadow-sm"
+                        title={serverStatus.container_status === 'docker_unavailable' ? 'Docker control not available in this environment' : undefined}
                       >
                         {isStarting ? (
                           <>
@@ -496,10 +503,11 @@ export const MCPPage = () => {
                     ) : (
                       <Button
                         onClick={handleStopServer}
-                        disabled={isStopping || serverStatus.status !== 'running'}
+                        disabled={isStopping || serverStatus.status !== 'running' || serverStatus.container_status === 'docker_unavailable'}
                         variant="primary"
                         accentColor="pink"
                         className="shadow-pink-500/20 shadow-sm"
+                        title={serverStatus.container_status === 'docker_unavailable' ? 'Docker control not available in this environment' : undefined}
                       >
                         {isStopping ? (
                           <>
