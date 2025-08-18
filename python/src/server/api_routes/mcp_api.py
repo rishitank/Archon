@@ -52,8 +52,7 @@ class MCPServerManager:
     """Manages the MCP Docker container lifecycle."""
 
     def __init__(self):
-        # Allow override for environments that rename containers (e.g., platform deploys)
-        self.container_name = os.getenv("MCP_CONTAINER_NAME", "Archon-MCP")
+        self.container_name = "Archon-MCP"  # Container name from docker-compose.yml
         self.docker_client = None
         self.container = None
         self.status: str = "stopped"

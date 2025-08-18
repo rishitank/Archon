@@ -743,24 +743,13 @@ server {
 }
 ```
 
-#### Caddy (proxy in same Docker network)
+#### Caddy
 ```caddyfile
 your.domain {
   reverse_proxy / frontend:5173
-  reverse_proxy /api* archon-server:8080
+  reverse_proxy /api* archon-server:${ARCHON_SERVER_PORT}
   reverse_proxy /mcp* archon-mcp:8051
-  reverse_proxy /socket.io* archon-server:8080
-}
-```
-
-If your proxy runs on the host (outside Docker), use the published ports instead:
-
-```caddyfile
-your.domain {
-  reverse_proxy / localhost:${ARCHON_UI_PORT}
-  reverse_proxy /api* localhost:${ARCHON_SERVER_PORT}
-  reverse_proxy /mcp* localhost:${ARCHON_MCP_PORT}
-  reverse_proxy /socket.io* localhost:${ARCHON_SERVER_PORT}
+  reverse_proxy /socket.io* archon-server:${ARCHON_SERVER_PORT}
 }
 ```
 
@@ -785,7 +774,7 @@ http:
     api:
       loadBalancer:
         servers:
-          - url: "http://archon-server:8080"
+          - url: "http://archon-server:${ARCHON_SERVER_PORT}"
     mcp:
       loadBalancer:
         servers:

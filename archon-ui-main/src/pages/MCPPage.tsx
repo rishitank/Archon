@@ -138,12 +138,11 @@ export const MCPPage = () => {
       console.error('Failed to load configuration:', error);
       // Set a default config if loading fails
       // Try to detect port from environment or use default
-      const rawPort = import.meta.env.VITE_ARCHON_MCP_PORT as string | undefined;
-      const parsedPort = rawPort && /^\d+$/.test(rawPort) ? Number(rawPort) : 8051;
+      const defaultPort = import.meta.env.ARCHON_MCP_PORT || 8051;
       setConfig({
         transport: 'http',
         host: 'localhost',
-        port: parsedPort
+        port: typeof defaultPort === 'string' ? parseInt(defaultPort) : defaultPort
       });
     }
   };
@@ -225,7 +224,7 @@ export const MCPPage = () => {
       return '// Configuration not available. Please ensure the server is running.';
     }
 
-    const mcpUrl = `${config.transport}://${config.host}:${config.port}/mcp`;
+    const mcpUrl = `http://${config.host}:${config.port}/mcp`;
 
     switch(ide) {
       case 'claudecode':
@@ -456,7 +455,7 @@ export const MCPPage = () => {
                 <div className="flex items-center justify-between">
                   <div
                     className="flex items-center gap-3 cursor-help"
-                    title={import.meta.env.DEV ?
+                    title={process.env.NODE_ENV === 'development' ?
                       `Debug Info:\nStatus: ${serverStatus.status}\nConfig: ${config ? 'loaded' : 'null'}\n${config ? `Details: ${JSON.stringify(config, null, 2)}` : ''}` :
                       undefined
                     }
