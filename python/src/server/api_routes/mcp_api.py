@@ -49,7 +49,7 @@ class MCPServerManager:
     """Manages the MCP Docker container lifecycle."""
 
     def __init__(self):
-        self.container_name = "Archon-MCP"  # Container name from docker-compose.yml
+        # Do not rely on env or hard-coded container names; auto-discover by Compose service label or name pattern
         self.docker_client = None
         self.container = None
         self.status: str = "stopped"
@@ -63,15 +63,21 @@ class MCPServerManager:
         self._initialize_docker_client()
 
     def _initialize_docker_client(self):
-        """Initialize Docker client and get container reference."""
+        """Initialize Docker client and auto-discover the MCP container."""
         try:
             self.docker_client = docker.from_env()
-            try:
-                self.container = self.docker_client.containers.get(self.container_name)
-                mcp_logger.info(f"Found Docker container: {self.container_name}")
-            except NotFound:
-                mcp_logger.warning(f"Docker container {self.container_name} not found")
-                self.container = None
+            self.container = None
+            # Prefer exact service/container name 'Archon-MCP'; otherwise fallback to name pattern contains 'archon-mcp'
+            candidates = self.docker_client.containers.list(all=True)
+            for c in candidates:
+                name = c.name or ""
+                # Docker Compose typically names containers <project>-archon-mcp-1 etc.; also support explicit name Archon-MCP
+                if name == "Archon-MCP" or "archon-mcp" in name.lower():
+                    self.container = c
+                    mcp_logger.info(f"Auto-discovered MCP container: {c.name}")
+                    break
+            if not self.container:
+                mcp_logger.warning("MCP container not found via auto-discovery (pattern: 'archon-mcp')")
         except Exception as e:
             mcp_logger.error(f"Failed to initialize Docker client: {str(e)}")
             self.docker_client = None
@@ -85,7 +91,10 @@ class MCPServerManager:
             if self.container:
                 self.container.reload()  # Refresh container info
             else:
-                self.container = self.docker_client.containers.get(self.container_name)
+                # Attempt discovery again
+                self._initialize_docker_client()
+                if not self.container:
+                    return "not_found"
 
             return self.container.status
         except NotFound:
