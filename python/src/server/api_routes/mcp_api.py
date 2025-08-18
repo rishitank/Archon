@@ -24,6 +24,7 @@ from pydantic import BaseModel
 # Import unified logging
 from ..config.logfire_config import api_logger, mcp_logger, safe_set_attribute, safe_span
 from ..utils import get_supabase_client
+from ..constants.mcp import Status, ENV_MCP_PORT, DEFAULT_MCP_SERVICE_HOST
 
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
@@ -86,11 +87,11 @@ class MCPServerManager:
         if not self.docker_client:
             # Try TCP probe for MCP before declaring unavailable
             try:
-                mcp_port = int(os.getenv("ARCHON_MCP_PORT", "8051"))
-                with socket.create_connection(("archon-mcp", mcp_port), timeout=1.0):
-                    return "running"
+                mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                    return Status.RUNNING
             except Exception:
-                return "docker_unavailable"
+                return Status.DOCKER_UNAVAILABLE
 
         try:
             if self.container:
@@ -102,20 +103,20 @@ class MCPServerManager:
         except NotFound:
             # Fallback TCP probe in case discovery failed
             try:
-                mcp_port = int(os.getenv("ARCHON_MCP_PORT", "8051"))
-                with socket.create_connection(("archon-mcp", mcp_port), timeout=1.0):
-                    return "running"
+                mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                    return Status.RUNNING
             except Exception:
-                return "not_found"
+                return Status.NOT_FOUND
         except Exception as e:
             mcp_logger.error(f"Error getting container status: {str(e)}")
             # Final fallback TCP probe
             try:
-                mcp_port = int(os.getenv("ARCHON_MCP_PORT", "8051"))
-                with socket.create_connection(("archon-mcp", mcp_port), timeout=1.0):
-                    return "running"
+                mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                    return Status.RUNNING
             except Exception:
-                return "error"
+                return Status.ERROR
 
     def _is_log_reader_active(self) -> bool:
         """Check if the log reader task is active."""
@@ -162,22 +163,22 @@ class MCPServerManager:
                 mcp_logger.error("Docker client not available")
                 return {
                     "success": False,
-                    "status": "docker_unavailable",
+                    "status": Status.DOCKER_UNAVAILABLE,
                     "message": "Docker is not available. Is Docker socket mounted?",
                 }
 
             # Check current container status
             container_status = self._get_container_status()
 
-            if container_status in ("not_found", "docker_unavailable"):
+            if container_status in (Status.NOT_FOUND, Status.DOCKER_UNAVAILABLE):
                 # If TCP probe believes MCP is running, surface as running
                 try:
-                    mcp_port = int(os.getenv("ARCHON_MCP_PORT", "8051"))
-                    with socket.create_connection(("archon-mcp", mcp_port), timeout=1.0):
-                        self.status = "running"
+                    mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                    with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                        self.status = Status.RUNNING
                         return {
                             "success": True,
-                            "status": "running",
+                            "status": Status.RUNNING,
                             "message": "MCP server appears to be running (detected via TCP)."
                         }
                 except Exception:
