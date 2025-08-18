@@ -307,7 +307,14 @@ export const TestResultDashboard: React.FC<TestResultDashboardProps> = ({
       if (testResults.status === 'fulfilled') {
         setResults(testResults.value);
       } else {
-        console.warn('Failed to load test results:', testResults.reason);
+        // Treat 404 (no results yet) as empty state; suppress noisy console error
+        const reason = testResults.reason as any;
+        const status = reason?.status || reason?.response?.status;
+        if (status === 404 || /404/.test(String(reason))) {
+          setResults(null);
+        } else {
+          console.warn('Failed to load test results:', testResults.reason);
+        }
       }
 
       if (coverageData.status === 'fulfilled' && coverageData.value) {
