@@ -693,11 +693,11 @@ async def get_mcp_config():
 
             mcp_port = int(os.getenv("ARCHON_MCP_PORT", "8051"))
 
-            # Configuration for SSE-only mode with actual port
+            # Configuration reflecting Streamable HTTP transport
             config = {
                 "host": "localhost",
                 "port": mcp_port,
-                "transport": "sse",
+                "transport": "http",
             }
 
             # Get only model choice from database

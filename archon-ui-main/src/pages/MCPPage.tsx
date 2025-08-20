@@ -121,9 +121,22 @@ export const MCPPage = () => {
       setServerStatus(status);
       setIsLoading(false);
     } catch (error) {
+      const msg = (error as any)?.message?.toLowerCase() || '';
+      const st = (error as any)?.status || (error as any)?.response?.status;
+      // If server is still initializing or a transient 400, retry once after a short delay
+      if (msg.includes('initialization') || Number(st) === 400) {
+        await new Promise(res => setTimeout(res, 1000));
+        try {
+          const statusRetry = await mcpServerService.getStatus();
+          setServerStatus(statusRetry);
+          setIsLoading(false);
+          return;
+        } catch {}
+      }
       console.error('Failed to load server status:', error);
       setIsLoading(false);
     }
+  }
   };
 
   /**
@@ -298,7 +311,7 @@ export const MCPPage = () => {
           title: 'Claude Code Configuration',
           steps: [
             '1. Open a terminal and run the following command:',
-            `2. claude mcp add --transport http archon http://${config?.host}:${config?.port}/mcp`,
+            `2. claude mcp add --transport http archon http://${window.location.hostname}:${config?.port}/mcp`,
             '3. The connection will be established automatically'
           ]
         };
