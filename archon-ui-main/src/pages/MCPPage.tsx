@@ -136,7 +136,6 @@ export const MCPPage = () => {
       console.error('Failed to load server status:', error);
       setIsLoading(false);
     }
-  }
   };
 
   /**
