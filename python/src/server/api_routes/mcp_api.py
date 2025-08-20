@@ -320,6 +320,27 @@ class MCPServerManager:
                 self.status = "stopping"
                 self._add_log("INFO", "Stopping MCP container...")
                 mcp_logger.info(f"Stopping MCP container: {self.container_name}")
+
+                # Ensure container reference exists
+                if not self.container:
+                    try:
+                        self.container = self.docker_client.containers.get(self.container_name)
+                    except Exception:
+                        self.container = None
+
+                if not self.container:
+                    warning_msg = (
+                        "Docker container not found; cannot stop via API. "
+                        "This can happen if Docker is unavailable or the container name changed."
+                    )
+                    self._add_log("WARNING", warning_msg)
+                    mcp_logger.warning(warning_msg)
+                    return {
+                        "success": False,
+                        "status": container_status,
+                        "message": warning_msg,
+                    }
+
                 safe_set_attribute(span, "container_id", self.container.id)
 
                 # Cancel log reading task

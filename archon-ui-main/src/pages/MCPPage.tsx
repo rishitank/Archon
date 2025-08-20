@@ -7,6 +7,7 @@ import { useStaggeredEntrance } from '../hooks/useStaggeredEntrance';
 import { useToast } from '../contexts/ToastContext';
 import { mcpServerService, ServerStatus, LogEntry, ServerConfig } from '../services/mcpServerService';
 import { IDEGlobalRules } from '../components/settings/IDEGlobalRules';
+import { McpServerStatus, McpContainerStatus } from '../constants/mcp';
 // import { MCPClients } from '../components/mcp/MCPClients'; // Commented out - feature not implemented
 
 // Supported IDE/Agent types
@@ -356,10 +357,10 @@ export const MCPPage = () => {
 
   const getStatusIcon = () => {
     switch (serverStatus.status) {
-      case 'running':
+      case McpServerStatus.RUNNING:
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'starting':
-      case 'stopping':
+      case McpServerStatus.STARTING:
+      case McpServerStatus.STOPPING:
         return <Loader className="w-5 h-5 text-blue-500 animate-spin" />;
       default:
         return <AlertCircle className="w-5 h-5 text-red-500" />;
@@ -368,10 +369,10 @@ export const MCPPage = () => {
 
   const getStatusColor = () => {
     switch (serverStatus.status) {
-      case 'running':
+      case McpServerStatus.RUNNING:
         return 'text-green-500';
-      case 'starting':
-      case 'stopping':
+      case McpServerStatus.STARTING:
+      case McpServerStatus.STOPPING:
         return 'text-blue-500';
       default:
         return 'text-red-500';
@@ -465,7 +466,7 @@ export const MCPPage = () => {
                       <p className={`font-semibold ${getStatusColor()}`}>
                         Status: {serverStatus.status.charAt(0).toUpperCase() + serverStatus.status.slice(1)}
                       </p>
-                      {serverStatus.container_status === 'docker_unavailable' && (
+                      {serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE && (
                         <p className="text-xs text-gray-500 mt-1">
                           Docker control disabled; status derived via network probe. Start/Stop requires Docker permissions.
                         </p>
@@ -480,14 +481,14 @@ export const MCPPage = () => {
 
                   {/* Control Buttons */}
                   <div className="flex gap-2 items-center">
-                    {serverStatus.status === 'stopped' ? (
+                    {serverStatus.status === McpServerStatus.STOPPED ? (
                       <Button
                         onClick={handleStartServer}
-                        disabled={isStarting || serverStatus.container_status === 'docker_unavailable'}
+                        disabled={isStarting || serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE}
                         variant="primary"
                         accentColor="green"
                         className="shadow-emerald-500/20 shadow-sm"
-                        title={serverStatus.container_status === 'docker_unavailable' ? 'Docker control not available in this environment' : undefined}
+                        title={serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE ? 'Docker control not available in this environment' : undefined}
                       >
                         {isStarting ? (
                           <>
@@ -508,11 +509,11 @@ export const MCPPage = () => {
                     ) : (
                       <Button
                         onClick={handleStopServer}
-                        disabled={isStopping || serverStatus.status !== 'running' || serverStatus.container_status === 'docker_unavailable'}
+                        disabled={isStopping || serverStatus.status !== McpServerStatus.RUNNING || serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE}
                         variant="primary"
                         accentColor="pink"
                         className="shadow-pink-500/20 shadow-sm"
-                        title={serverStatus.container_status === 'docker_unavailable' ? 'Docker control not available in this environment' : undefined}
+                        title={serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE ? 'Docker control not available in this environment' : undefined}
                       >
                         {isStopping ? (
                           <>
@@ -521,7 +522,7 @@ export const MCPPage = () => {
                           </>
                         ) : (
                           <>
-                            {serverStatus.container_status === 'docker_unavailable' ? (
+                            {serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE ? (
                               <Lock className="w-4 h-4 mr-2 inline" />
                             ) : (
                               <Square className="w-4 h-4 mr-2 inline" />
