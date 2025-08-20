@@ -151,12 +151,13 @@ export const MCPPage = () => {
     } catch (error) {
       console.error('Failed to load configuration:', error);
       // Set a default config if loading fails
-      // Try to detect port from environment or use default
-      const defaultPort = import.meta.env.ARCHON_MCP_PORT || 8051;
+      // Use current origin host and VITE_ port override when available
+      const rawPort = import.meta.env.VITE_ARCHON_MCP_PORT as string | undefined;
+      const parsedPort = rawPort && /^\d+$/.test(rawPort) ? Number(rawPort) : 8051;
       setConfig({
         transport: 'http',
-        host: 'localhost',
-        port: typeof defaultPort === 'string' ? parseInt(defaultPort) : defaultPort
+        host: window.location.hostname || 'localhost',
+        port: parsedPort,
       });
     }
   };
@@ -217,7 +218,7 @@ export const MCPPage = () => {
     if (!config) return '';
 
     const httpConfig = {
-      url: `http://${config.host}:${config.port}/mcp`
+      url: `http://${window.location.hostname}:${config.port}/mcp`
     };
 
     const configString = JSON.stringify(httpConfig);
@@ -264,7 +265,7 @@ export const MCPPage = () => {
         return JSON.stringify({
           mcpServers: {
             archon: {
-              serverUrl: mcpUrl
+              serverUrl: `http://${window.location.hostname}:${config?.port}/mcp`
             }
           }
         }, null, 2);
@@ -274,7 +275,7 @@ export const MCPPage = () => {
         return JSON.stringify({
           mcpServers: {
             archon: {
-              url: mcpUrl
+              url: `http://${window.location.hostname}:${config?.port}/mcp`
             }
           }
         }, null, 2);
