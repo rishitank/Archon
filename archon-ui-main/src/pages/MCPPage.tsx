@@ -217,7 +217,7 @@ export const MCPPage = () => {
     if (!config) return '';
 
     const httpConfig = {
-      url: `http://${window.location.hostname}:${config.port}/mcp`
+      url: buildMcpUrl()
     };
 
     const configString = JSON.stringify(httpConfig);
@@ -232,13 +232,30 @@ export const MCPPage = () => {
   };
 
 
+  // Compute the public MCP URL from build env with sensible fallbacks
+  const buildMcpUrl = () => {
+    const envHost = (import.meta.env.VITE_MCP_PUBLIC_HOST as string | undefined) || undefined;
+    const envPortStr = (import.meta.env.VITE_MCP_PUBLIC_PORT as string | undefined) || undefined;
+    const envScheme = (import.meta.env.VITE_MCP_PUBLIC_SCHEME as string | undefined) || undefined;
+
+    const scheme = (envScheme || (typeof window !== 'undefined' ? window.location.protocol.replace(':', '') : undefined) || config?.transport || 'http').toLowerCase();
+    const host = envHost || config?.host || (typeof window !== 'undefined' ? window.location.hostname : undefined) || 'localhost';
+
+    const portFromEnv = envPortStr && /^\d+$/.test(envPortStr) ? Number(envPortStr) : undefined;
+    const defaultPort = scheme === 'https' ? 443 : 80;
+    const port = portFromEnv ?? config?.port ?? (typeof window !== 'undefined' && window.location.port ? Number(window.location.port) : defaultPort);
+
+    const portPart = port && port !== defaultPort ? `:${port}` : '';
+    return `${scheme}://${host}${portPart}/mcp`;
+  };
+
 
   const getConfigForIDE = (ide: SupportedIDE) => {
     if (!config || !config.host || !config.port) {
       return '// Configuration not available. Please ensure the server is running.';
     }
 
-    const mcpUrl = `${config.transport}://${config.host}:${config.port}/mcp`;
+    const mcpUrl = buildMcpUrl();
 
     switch(ide) {
       case 'claudecode':
@@ -264,7 +281,7 @@ export const MCPPage = () => {
         return JSON.stringify({
           mcpServers: {
             archon: {
-              serverUrl: `http://${window.location.hostname}:${config?.port}/mcp`
+              serverUrl: mcpUrl
             }
           }
         }, null, 2);
@@ -274,7 +291,7 @@ export const MCPPage = () => {
         return JSON.stringify({
           mcpServers: {
             archon: {
-              url: `http://${window.location.hostname}:${config?.port}/mcp`
+              url: mcpUrl
             }
           }
         }, null, 2);
@@ -311,7 +328,7 @@ export const MCPPage = () => {
           title: 'Claude Code Configuration',
           steps: [
             '1. Open a terminal and run the following command:',
-            `2. claude mcp add --transport http archon http://${window.location.hostname}:${config?.port}/mcp`,
+            `2. claude mcp add --transport http archon ${buildMcpUrl()}`,
             '3. The connection will be established automatically'
           ]
         };
