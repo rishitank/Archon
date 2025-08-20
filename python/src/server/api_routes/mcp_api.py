@@ -700,6 +700,21 @@ async def get_mcp_config():
                 "transport": "http",
             }
 
+            # Derive a public URL for remote clients from env or request headers
+            public_url = os.getenv("ARCHON_MCP_PUBLIC_URL")
+            try:
+                if not public_url and request is not None:
+                    # Prefer reverse-proxy headers if present
+                    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+                    host_hdr = request.headers.get("host")
+                    if host_hdr and scheme:
+                        public_url = f"{scheme}://{host_hdr}/mcp"
+            except Exception:
+                public_url = None
+
+            if public_url:
+                config["public_url"] = public_url
+
             # Get only model choice from database
             try:
                 from ..services.credential_service import credential_service

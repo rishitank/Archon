@@ -234,18 +234,36 @@ export const MCPPage = () => {
 
   // Compute the public MCP URL from build env with sensible fallbacks
   const buildMcpUrl = () => {
-    const envHost = (import.meta.env.VITE_MCP_PUBLIC_HOST as string | undefined) || undefined;
-    const envPortStr = (import.meta.env.VITE_MCP_PUBLIC_PORT as string | undefined) || undefined;
-    const envScheme = (import.meta.env.VITE_MCP_PUBLIC_SCHEME as string | undefined) || undefined;
+    const envHost = import.meta.env.VITE_MCP_PUBLIC_HOST as string | undefined;
+    const envPortStr = import.meta.env.VITE_MCP_PUBLIC_PORT as string | undefined;
+    const envScheme = import.meta.env.VITE_MCP_PUBLIC_SCHEME as string | undefined;
+
+    // Prefer backend-provided public_url when available
+    if (config?.public_url) return config.public_url;
 
     const scheme = (envScheme || (typeof window !== 'undefined' ? window.location.protocol.replace(':', '') : undefined) || config?.transport || 'http').toLowerCase();
-    const host = envHost || config?.host || (typeof window !== 'undefined' ? window.location.hostname : undefined) || 'localhost';
-
-    const portFromEnv = envPortStr && /^\d+$/.test(envPortStr) ? Number(envPortStr) : undefined;
     const defaultPort = scheme === 'https' ? 443 : 80;
-    const port = portFromEnv ?? config?.port ?? (typeof window !== 'undefined' && window.location.port ? Number(window.location.port) : defaultPort);
 
-    const portPart = port && port !== defaultPort ? `:${port}` : '';
+    let host: string;
+    let port: number | undefined;
+
+    if (envHost) {
+      host = envHost;
+      // When a public host is specified, only include a port if explicitly provided
+      port = envPortStr && /^\d+$/.test(envPortStr) ? Number(envPortStr) : undefined;
+    } else if (config?.host) {
+      host = config.host;
+      port = typeof config.port === 'number' ? config.port : undefined;
+    } else if (typeof window !== 'undefined') {
+      host = window.location.hostname || 'localhost';
+      port = window.location.port ? Number(window.location.port) : undefined;
+    } else {
+      host = 'localhost';
+      port = undefined;
+    }
+
+    const includePort = typeof port === 'number' && port !== defaultPort;
+    const portPart = includePort ? `:${port}` : '';
     return `${scheme}://${host}${portPart}/mcp`;
   };
 

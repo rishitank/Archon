@@ -22,6 +22,7 @@ export interface ServerConfig {
   transport: string;
   host: string;
   port: number;
+  public_url?: string; // optional public URL for remote clients
   model?: string;
 }
 
