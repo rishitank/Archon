@@ -18,7 +18,7 @@ import os
 import socket
 import docker
 from docker.errors import APIError, NotFound
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Request
 from pydantic import BaseModel
 
 # Import unified logging
@@ -679,7 +679,7 @@ async def clear_logs():
 
 
 @router.get("/config")
-async def get_mcp_config():
+async def get_mcp_config(request: Request):
     """Get MCP server configuration."""
     with safe_span("api_get_mcp_config") as span:
         safe_set_attribute(span, "endpoint", "/api/mcp/config")
