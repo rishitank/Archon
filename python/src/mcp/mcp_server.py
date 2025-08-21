@@ -203,6 +203,29 @@ try:
     logger.info("✓ FastMCP server instance created successfully")
 
 except Exception as e:
+
+# Expose a lightweight HTTP readiness endpoint if FastMCP exposes the FastAPI app
+try:
+    app = getattr(mcp, "app", None) or getattr(mcp, "_app", None)
+    if app:
+        @app.get("/health")
+        async def http_health():  # type: ignore
+            """HTTP readiness probe for MCP (Streamable HTTP).
+            Returns initializing until lifespan completes, then healthy.
+            """
+            ready = bool(_initialization_complete)
+            return {
+                "status": "healthy" if ready else "initializing",
+                "service": "archon-mcp",
+                "transport": "streamable-http",
+                "ready": ready,
+                "timestamp": datetime.now().isoformat(),
+            }
+    else:
+        logger.warning("FastMCP app not exposed; skipping /health route for MCP")
+except Exception as e:
+    logger.warning(f"Unable to attach MCP /health route: {e}")
+
     logger.error(f"✗ Failed to create FastMCP server: {e}")
     logger.error(traceback.format_exc())
     raise
