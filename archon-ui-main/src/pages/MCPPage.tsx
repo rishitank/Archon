@@ -468,6 +468,14 @@ export const MCPPage = () => {
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></span>
             )}
           </button>
+
+          {/* Initialization banner if transient init conditions were detected previously */}
+          {serverStatus.status === McpServerStatus.STARTING && (
+            <div className="mb-4 rounded-md border border-yellow-300 bg-yellow-50 text-yellow-800 px-4 py-2 text-sm dark:bg-yellow-900/20 dark:border-yellow-900 dark:text-yellow-200">
+              MCP server is initializing. Retrying connection...
+            </div>
+          )}
+
           {/* TODO: MCP Client feature not implemented - commenting out for now
           <button
             onClick={() => setActiveTab('clients')}
