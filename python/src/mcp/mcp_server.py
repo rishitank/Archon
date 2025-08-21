@@ -201,8 +201,10 @@ try:
         port=server_port,
     )
     logger.info("✓ FastMCP server instance created successfully")
-
 except Exception as e:
+    logger.error(f"✗ Failed to create FastMCP server: {e}")
+    logger.error(traceback.format_exc())
+    raise
 
 # Expose a lightweight HTTP readiness endpoint if FastMCP exposes the FastAPI app
 try:
@@ -225,10 +227,6 @@ try:
         logger.warning("FastMCP app not exposed; skipping /health route for MCP")
 except Exception as e:
     logger.warning(f"Unable to attach MCP /health route: {e}")
-
-    logger.error(f"✗ Failed to create FastMCP server: {e}")
-    logger.error(traceback.format_exc())
-    raise
 
 
 # Health check endpoint
