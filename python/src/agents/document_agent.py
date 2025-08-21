@@ -73,10 +73,12 @@ class DocumentAgent(BaseAgent[DocumentDependencies, DocumentOperation]):
     def _create_agent(self, **kwargs) -> Agent:
         """Create the PydanticAI agent with tools and prompts."""
 
+        from inspect import signature
+        rt_kwarg = {"output_type": DocumentOperation} if "output_type" in signature(Agent).parameters else {"result_type": DocumentOperation}
         agent = Agent(
             model=self.model,
             deps_type=DocumentDependencies,
-            result_type=DocumentOperation,
+            **rt_kwarg,
             system_prompt="""You are a Document Management Assistant that helps users create, update, and modify project documents through conversation.
 
 **Your Capabilities:**

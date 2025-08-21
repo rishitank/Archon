@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Copy, Clock, Server, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { Play, Square, Copy, Clock, Server, AlertCircle, CheckCircle, Loader, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -7,40 +7,43 @@ import { useStaggeredEntrance } from '../hooks/useStaggeredEntrance';
 import { useToast } from '../contexts/ToastContext';
 import { mcpServerService, ServerStatus, LogEntry, ServerConfig } from '../services/mcpServerService';
 import { IDEGlobalRules } from '../components/settings/IDEGlobalRules';
+import { McpServerStatus, McpContainerStatus } from '../constants/mcp';
 // import { MCPClients } from '../components/mcp/MCPClients'; // Commented out - feature not implemented
 
 // Supported IDE/Agent types
 type SupportedIDE = 'windsurf' | 'cursor' | 'claudecode' | 'cline' | 'kiro' | 'augment';
 
 /**
+
  * MCP Dashboard Page Component
- * 
+ *
  * This is the main dashboard for managing the MCP (Model Context Protocol) server.
  * It provides a comprehensive interface for:
- * 
+ *
  * 1. Server Control Tab:
  *    - Start/stop the MCP server
  *    - Monitor server status and uptime
  *    - View and copy connection configuration
  *    - Real-time log streaming via WebSocket
  *    - Historical log viewing and clearing
- * 
+ *
  * 2. MCP Clients Tab:
  *    - Interactive client management interface
  *    - Tool discovery and testing
  *    - Real-time tool execution
  *    - Parameter input and result visualization
- * 
+ *
  * The page uses a tab-based layout with preserved server functionality
  * and enhanced client management capabilities.
- * 
+ *
  * @component
  */
 export const MCPPage = () => {
   const [serverStatus, setServerStatus] = useState<ServerStatus>({
     status: 'stopped',
     uptime: null,
-    logs: []
+    logs: [],
+    container_status: undefined,
   });
   const [config, setConfig] = useState<ServerConfig | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -91,7 +94,7 @@ export const MCPPage = () => {
       mcpServerService.streamLogs((log) => {
         setLogs(prev => [...prev, log]);
       }, { autoReconnect: true });
-      
+
       // Ensure configuration is loaded when server is running
       if (!config) {
         loadConfiguration();
@@ -118,6 +121,18 @@ export const MCPPage = () => {
       setServerStatus(status);
       setIsLoading(false);
     } catch (error) {
+      const msg = (error as any)?.message?.toLowerCase() || '';
+      const st = (error as any)?.status || (error as any)?.response?.status;
+      // If server is still initializing or a transient 400, retry once after a short delay
+      if (msg.includes('initialization') || Number(st) === 400) {
+        await new Promise(res => setTimeout(res, 1000));
+        try {
+          const statusRetry = await mcpServerService.getStatus();
+          setServerStatus(statusRetry);
+          setIsLoading(false);
+          return;
+        } catch {}
+      }
       console.error('Failed to load server status:', error);
       setIsLoading(false);
     }
@@ -135,12 +150,13 @@ export const MCPPage = () => {
     } catch (error) {
       console.error('Failed to load configuration:', error);
       // Set a default config if loading fails
-      // Try to detect port from environment or use default
-      const defaultPort = import.meta.env.ARCHON_MCP_PORT || 8051;
+      // Use current origin host and VITE_ port override when available
+      const rawPort = import.meta.env.VITE_ARCHON_MCP_PORT as string | undefined;
+      const parsedPort = rawPort && /^\d+$/.test(rawPort) ? Number(rawPort) : 8051;
       setConfig({
         transport: 'http',
-        host: 'localhost',
-        port: typeof defaultPort === 'string' ? parseInt(defaultPort) : defaultPort
+        host: window.location.hostname || 'localhost',
+        port: parsedPort,
       });
     }
   };
@@ -191,7 +207,7 @@ export const MCPPage = () => {
 
   const handleCopyConfig = () => {
     if (!config) return;
-    
+
     const configText = getConfigForIDE(selectedIDE);
     navigator.clipboard.writeText(configText);
     showToast('Configuration copied to clipboard', 'success');
@@ -199,11 +215,11 @@ export const MCPPage = () => {
 
   const generateCursorDeeplink = () => {
     if (!config) return '';
-    
+
     const httpConfig = {
-      url: `http://${config.host}:${config.port}/mcp`
+      url: buildMcpUrl()
     };
-    
+
     const configString = JSON.stringify(httpConfig);
     const base64Config = btoa(configString);
     return `cursor://anysphere.cursor-deeplink/mcp/install?name=archon&config=${base64Config}`;
@@ -216,14 +232,49 @@ export const MCPPage = () => {
   };
 
 
+  // Compute the public MCP URL from build env with sensible fallbacks
+  const buildMcpUrl = () => {
+    const envHost = import.meta.env.VITE_MCP_PUBLIC_HOST as string | undefined;
+    const envPortStr = import.meta.env.VITE_MCP_PUBLIC_PORT as string | undefined;
+    const envScheme = import.meta.env.VITE_MCP_PUBLIC_SCHEME as string | undefined;
+
+    // Prefer backend-provided public_url when available
+    if (config?.public_url) return config.public_url;
+
+    const scheme = (envScheme || (typeof window !== 'undefined' ? window.location.protocol.replace(':', '') : undefined) || config?.transport || 'http').toLowerCase();
+    const defaultPort = scheme === 'https' ? 443 : 80;
+
+    let host: string;
+    let port: number | undefined;
+
+    if (envHost) {
+      host = envHost;
+      // When a public host is specified, only include a port if explicitly provided
+      port = envPortStr && /^\d+$/.test(envPortStr) ? Number(envPortStr) : undefined;
+    } else if (config?.host) {
+      host = config.host;
+      port = typeof config.port === 'number' ? config.port : undefined;
+    } else if (typeof window !== 'undefined') {
+      host = window.location.hostname || 'localhost';
+      port = window.location.port ? Number(window.location.port) : undefined;
+    } else {
+      host = 'localhost';
+      port = undefined;
+    }
+
+    const includePort = typeof port === 'number' && port !== defaultPort;
+    const portPart = includePort ? `:${port}` : '';
+    return `${scheme}://${host}${portPart}/mcp`;
+  };
+
 
   const getConfigForIDE = (ide: SupportedIDE) => {
     if (!config || !config.host || !config.port) {
       return '// Configuration not available. Please ensure the server is running.';
     }
-    
-    const mcpUrl = `http://${config.host}:${config.port}/mcp`;
-    
+
+    const mcpUrl = buildMcpUrl();
+
     switch(ide) {
       case 'claudecode':
         return JSON.stringify({
@@ -231,7 +282,7 @@ export const MCPPage = () => {
           transport: "http",
           url: mcpUrl
         }, null, 2);
-        
+
       case 'cline':
       case 'kiro':
         // Cline and Kiro use stdio transport with mcp-remote
@@ -243,7 +294,7 @@ export const MCPPage = () => {
             }
           }
         }, null, 2);
-        
+
       case 'windsurf':
         return JSON.stringify({
           mcpServers: {
@@ -252,7 +303,7 @@ export const MCPPage = () => {
             }
           }
         }, null, 2);
-        
+
       case 'cursor':
       case 'augment':
         return JSON.stringify({
@@ -262,7 +313,7 @@ export const MCPPage = () => {
             }
           }
         }, null, 2);
-        
+
       default:
         return '';
     }
@@ -295,7 +346,7 @@ export const MCPPage = () => {
           title: 'Claude Code Configuration',
           steps: [
             '1. Open a terminal and run the following command:',
-            `2. claude mcp add --transport http archon http://${config?.host}:${config?.port}/mcp`,
+            `2. claude mcp add --transport http archon ${buildMcpUrl()}`,
             '3. The connection will be established automatically'
           ]
         };
@@ -354,10 +405,10 @@ export const MCPPage = () => {
 
   const getStatusIcon = () => {
     switch (serverStatus.status) {
-      case 'running':
+      case McpServerStatus.RUNNING:
         return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'starting':
-      case 'stopping':
+      case McpServerStatus.STARTING:
+      case McpServerStatus.STOPPING:
         return <Loader className="w-5 h-5 text-blue-500 animate-spin" />;
       default:
         return <AlertCircle className="w-5 h-5 text-red-500" />;
@@ -366,10 +417,10 @@ export const MCPPage = () => {
 
   const getStatusColor = () => {
     switch (serverStatus.status) {
-      case 'running':
+      case McpServerStatus.RUNNING:
         return 'text-green-500';
-      case 'starting':
-      case 'stopping':
+      case McpServerStatus.STARTING:
+      case McpServerStatus.STOPPING:
         return 'text-blue-500';
       default:
         return 'text-red-500';
@@ -417,6 +468,14 @@ export const MCPPage = () => {
               <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"></span>
             )}
           </button>
+
+          {/* Initialization banner if transient init conditions were detected previously */}
+          {serverStatus.status === McpServerStatus.STARTING && (
+            <div className="mb-4 rounded-md border border-yellow-300 bg-yellow-50 text-yellow-800 px-4 py-2 text-sm dark:bg-yellow-900/20 dark:border-yellow-900 dark:text-yellow-200">
+              MCP server is initializing. Retrying connection...
+            </div>
+          )}
+
           {/* TODO: MCP Client feature not implemented - commenting out for now
           <button
             onClick={() => setActiveTab('clients')}
@@ -440,21 +499,21 @@ export const MCPPage = () => {
         <>
           {/* Server Control + Server Logs */}
           <motion.div className="grid grid-cols-1 lg:grid-cols-2 gap-6" variants={itemVariants}>
-            
+
             {/* Left Column: Archon MCP Server */}
             <div className="flex flex-col">
               <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
                 <Server className="mr-2 text-blue-500" size={20} />
                 Archon MCP Server
               </h2>
-              
+
               <Card accentColor="blue" className="space-y-6 flex-1">
                 {/* Status Display */}
                 <div className="flex items-center justify-between">
-                  <div 
-                    className="flex items-center gap-3 cursor-help" 
-                    title={process.env.NODE_ENV === 'development' ? 
-                      `Debug Info:\nStatus: ${serverStatus.status}\nConfig: ${config ? 'loaded' : 'null'}\n${config ? `Details: ${JSON.stringify(config, null, 2)}` : ''}` : 
+                  <div
+                    className="flex items-center gap-3 cursor-help"
+                    title={import.meta.env.DEV ?
+                      `Debug Info:\nStatus: ${serverStatus.status}\nConfig: ${config ? 'loaded' : 'null'}\n${config ? `Details: ${JSON.stringify(config, null, 2)}` : ''}` :
                       undefined
                     }
                   >
@@ -463,6 +522,11 @@ export const MCPPage = () => {
                       <p className={`font-semibold ${getStatusColor()}`}>
                         Status: {serverStatus.status.charAt(0).toUpperCase() + serverStatus.status.slice(1)}
                       </p>
+                      {serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Docker control disabled; status derived via network probe. Start/Stop requires Docker permissions.
+                        </p>
+                      )}
                       {serverStatus.uptime !== null && (
                         <p className="text-sm text-gray-600 dark:text-zinc-400">
                           Uptime: {formatUptime(serverStatus.uptime)}
@@ -470,16 +534,17 @@ export const MCPPage = () => {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Control Buttons */}
                   <div className="flex gap-2 items-center">
-                    {serverStatus.status === 'stopped' ? (
+                    {serverStatus.status === McpServerStatus.STOPPED ? (
                       <Button
                         onClick={handleStartServer}
-                        disabled={isStarting}
+                        disabled={isStarting || serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE}
                         variant="primary"
                         accentColor="green"
                         className="shadow-emerald-500/20 shadow-sm"
+                        title={serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE ? 'Docker control not available in this environment' : undefined}
                       >
                         {isStarting ? (
                           <>
@@ -488,7 +553,11 @@ export const MCPPage = () => {
                           </>
                         ) : (
                           <>
-                            <Play className="w-4 h-4 mr-2 inline" />
+                            {serverStatus.container_status === 'docker_unavailable' ? (
+                              <Lock className="w-4 h-4 mr-2 inline" />
+                            ) : (
+                              <Play className="w-4 h-4 mr-2 inline" />
+                            )}
                             Start Server
                           </>
                         )}
@@ -496,10 +565,11 @@ export const MCPPage = () => {
                     ) : (
                       <Button
                         onClick={handleStopServer}
-                        disabled={isStopping || serverStatus.status !== 'running'}
+                        disabled={isStopping || serverStatus.status !== McpServerStatus.RUNNING || serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE}
                         variant="primary"
                         accentColor="pink"
                         className="shadow-pink-500/20 shadow-sm"
+                        title={serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE ? 'Docker control not available in this environment' : undefined}
                       >
                         {isStopping ? (
                           <>
@@ -508,7 +578,11 @@ export const MCPPage = () => {
                           </>
                         ) : (
                           <>
-                            <Square className="w-4 h-4 mr-2 inline" />
+                            {serverStatus.container_status === McpContainerStatus.DOCKER_UNAVAILABLE ? (
+                              <Lock className="w-4 h-4 mr-2 inline" />
+                            ) : (
+                              <Square className="w-4 h-4 mr-2 inline" />
+                            )}
                             Stop Server
                           </>
                         )}
@@ -537,7 +611,7 @@ export const MCPPage = () => {
                         Copy
                       </Button>
                     </div>
-                    
+
                     {/* IDE Selection Tabs */}
                     <div className="mb-4">
                       <div className="flex flex-wrap border-b border-gray-200 dark:border-zinc-700 mb-3">
@@ -621,7 +695,7 @@ export const MCPPage = () => {
                         {getConfigForIDE(selectedIDE)}
                       </pre>
                       <p className="text-xs text-gray-500 dark:text-zinc-500 mt-3 font-sans">
-                        {selectedIDE === 'cursor' 
+                        {selectedIDE === 'cursor'
                           ? 'Copy this configuration and add it to ~/.cursor/mcp.json'
                           : selectedIDE === 'windsurf'
                           ? 'Copy this configuration and add it to your Windsurf MCP settings'
@@ -637,7 +711,7 @@ export const MCPPage = () => {
                         }
                       </p>
                     </div>
-                    
+
                     {/* One-click install button for Cursor */}
                     {selectedIDE === 'cursor' && serverStatus.status === 'running' && (
                       <div className="mt-4">
@@ -666,11 +740,11 @@ export const MCPPage = () => {
                 <Clock className="mr-2 text-purple-500" size={20} />
                 Server Logs
               </h2>
-              
+
               <Card accentColor="purple" className="h-full flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm text-gray-600 dark:text-zinc-400">
-                    {logs.length > 0 
+                    {logs.length > 0
                       ? `Showing ${logs.length} log entries`
                       : 'No logs available'
                     }
@@ -684,15 +758,15 @@ export const MCPPage = () => {
                     Clear Logs
                   </Button>
                 </div>
-                
-                <div 
+
+                <div
                   id="mcp-logs-container"
                   ref={logsContainerRef}
                   className="bg-gray-50 dark:bg-black border border-gray-200 dark:border-zinc-900 rounded-md p-4 flex-1 overflow-y-auto font-mono text-sm max-h-[600px]"
                 >
                   {logs.length === 0 ? (
                     <p className="text-gray-500 dark:text-zinc-500 text-center py-8">
-                      {serverStatus.status === 'running' 
+                      {serverStatus.status === 'running'
                         ? 'Waiting for log entries...'
                         : 'Start the server to see logs'
                       }
@@ -702,8 +776,8 @@ export const MCPPage = () => {
                       <div
                         key={index}
                         className={`py-1.5 border-b border-gray-100 dark:border-zinc-900 last:border-0 ${
-                          typeof log !== 'string' && log.level === 'ERROR' 
-                            ? 'text-red-600 dark:text-red-400' 
+                          typeof log !== 'string' && log.level === 'ERROR'
+                            ? 'text-red-600 dark:text-red-400'
                             : typeof log !== 'string' && log.level === 'WARNING'
                             ? 'text-yellow-600 dark:text-yellow-400'
                             : 'text-gray-600 dark:text-zinc-400'

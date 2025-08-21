@@ -138,7 +138,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[ArchonContext]:
 
     # Quick check without lock
     if _initialization_complete and _shared_context:
-        logger.info("♻️ Reusing existing context for new SSE connection")
+        logger.info("♻️ Reusing existing context for new HTTP stream connection")
         yield _shared_context
         return
 
@@ -146,7 +146,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[ArchonContext]:
     with _initialization_lock:
         # Double-check pattern
         if _initialization_complete and _shared_context:
-            logger.info("♻️ Reusing existing context for new SSE connection")
+            logger.info("♻️ Reusing existing context for new HTTP stream connection")
             yield _shared_context
             return
 
@@ -201,11 +201,32 @@ try:
         port=server_port,
     )
     logger.info("✓ FastMCP server instance created successfully")
-
 except Exception as e:
     logger.error(f"✗ Failed to create FastMCP server: {e}")
     logger.error(traceback.format_exc())
     raise
+
+# Expose a lightweight HTTP readiness endpoint if FastMCP exposes the FastAPI app
+try:
+    app = getattr(mcp, "app", None) or getattr(mcp, "_app", None)
+    if app:
+        @app.get("/health")
+        async def http_health():  # type: ignore
+            """HTTP readiness probe for MCP (Streamable HTTP).
+            Returns initializing until lifespan completes, then healthy.
+            """
+            ready = bool(_initialization_complete)
+            return {
+                "status": "healthy" if ready else "initializing",
+                "service": "archon-mcp",
+                "transport": "streamable-http",
+                "ready": ready,
+                "timestamp": datetime.now().isoformat(),
+            }
+    else:
+        logger.warning("FastMCP app not exposed; skipping /health route for MCP")
+except Exception as e:
+    logger.warning(f"Unable to attach MCP /health route: {e}")
 
 
 # Health check endpoint

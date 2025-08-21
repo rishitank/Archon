@@ -22,6 +22,7 @@ export interface ServerConfig {
   transport: string;
   host: string;
   port: number;
+  public_url?: string; // optional public URL for remote clients
   model?: string;
 }
 
@@ -66,6 +67,7 @@ const MCPResponseSchema = z.object({
 export type MCPTool = z.infer<typeof MCPToolSchema>;
 export type MCPParameter = z.infer<typeof MCPParameterSchema>;
 
+import { ApiRoutes } from '../constants/mcp';
 import { getWebSocketUrl } from '../config/api';
 
 /**
@@ -83,7 +85,7 @@ class MCPServerService {
   // ========================================
 
   async startServer(): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}/api/mcp/start`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_START}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -97,7 +99,7 @@ class MCPServerService {
   }
 
   async stopServer(): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}/api/mcp/stop`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_STOP}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -111,7 +113,7 @@ class MCPServerService {
   }
 
   async getStatus(): Promise<ServerStatus> {
-    const response = await fetch(`${this.baseUrl}/api/mcp/status`);
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_STATUS}`);
 
     if (!response.ok) {
       throw new Error('Failed to get server status');
@@ -121,7 +123,7 @@ class MCPServerService {
   }
 
   async getConfiguration(): Promise<ServerConfig> {
-    const response = await fetch(`${this.baseUrl}/api/mcp/config`);
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_CONFIG}`);
 
     if (!response.ok) {
       // Return default config if endpoint doesn't exist yet
@@ -136,7 +138,7 @@ class MCPServerService {
   }
 
   async updateConfiguration(config: Partial<ServerConfig>): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}/api/mcp/config`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_CONFIG}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
@@ -156,7 +158,7 @@ class MCPServerService {
       params.append('limit', options.limit.toString());
     }
 
-    const response = await fetch(`${this.baseUrl}/api/mcp/logs?${params}`);
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_LOGS}?${params}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch logs');
@@ -167,7 +169,7 @@ class MCPServerService {
   }
 
   async clearLogs(): Promise<ServerResponse> {
-    const response = await fetch(`${this.baseUrl}/api/mcp/logs`, {
+    const response = await fetch(`${this.baseUrl}${ApiRoutes.MCP_LOGS}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -188,18 +190,18 @@ class MCPServerService {
     // Close existing connection if any
     this.disconnectLogs();
 
-    const ws = new WebSocket(`${getWebSocketUrl()}/api/mcp/logs/stream`);
+    const ws = new WebSocket(`${getWebSocketUrl()}${ApiRoutes.MCP_LOGS_STREAM}`);
     this.logWebSocket = ws;
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
+
         // Ignore ping messages
         if (data.type === 'ping') {
           return;
         }
-        
+
         // Ignore connection messages
         if (data.type === 'connection') {
           return;
@@ -216,7 +218,7 @@ class MCPServerService {
 
     ws.onclose = () => {
       this.logWebSocket = null;
-      
+
       if (autoReconnect && !this.isReconnecting) {
         this.isReconnecting = true;
         this.reconnectTimeout = setTimeout(() => {
@@ -238,7 +240,7 @@ class MCPServerService {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     this.isReconnecting = false;
 
     if (this.logWebSocket) {
@@ -262,10 +264,10 @@ class MCPServerService {
 
     const config = await this.getConfiguration();
     const mcpUrl = `http://${config.host}:${config.port}/${config.transport}`;
-    
+
     // Generate unique request ID
     const id = Math.random().toString(36).substring(2);
-    
+
     const mcpRequest = {
       jsonrpc: '2.0',
       id,
@@ -287,10 +289,10 @@ class MCPServerService {
       }
 
       const mcpResponse = await response.json();
-      
+
       // Validate MCP response format
       const validatedResponse = MCPResponseSchema.parse(mcpResponse);
-      
+
       if (validatedResponse.error) {
         throw new Error(`MCP Error: ${validatedResponse.error.message}`);
       }
@@ -346,4 +348,4 @@ export const mcpServerService = new MCPServerService();
 export const getMCPTools = async () => {
   console.warn('getMCPTools is deprecated. Use mcpServerService.getAvailableTools() or mcpClientService instead.');
   return mcpServerService.getAvailableTools();
-}; 
+};

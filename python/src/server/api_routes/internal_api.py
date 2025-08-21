@@ -11,6 +11,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
+from ipaddress import ip_address
+
 from ..services.credential_service import credential_service
 
 logger = logging.getLogger(__name__)
@@ -19,36 +21,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 # Simple IP-based access control for internal endpoints
+# Note: Keep for future extensibility; current logic uses RFC1918 detection below
 ALLOWED_INTERNAL_IPS = [
     "127.0.0.1",  # Localhost
-    "172.18.0.0/16",  # Docker network range
-    "archon-agents",  # Docker service name
-    "archon-mcp",  # Docker service name
+    "172.18.0.0/16",  # Docker network range (example)
+    "archon-agents",  # Docker service name (not used in IP check)
+    "archon-mcp",  # Docker service name (not used in IP check)
 ]
 
 
 def is_internal_request(request: Request) -> bool:
-    """Check if request is from an internal source."""
+    """Check if request is from an internal source (RFC1918 or loopback)."""
     client_host = request.client.host if request.client else None
-
     if not client_host:
         return False
-
-    # Check if it's a Docker network IP (172.16.0.0/12 range)
-    if client_host.startswith("172."):
-        parts = client_host.split(".")
-        if len(parts) == 4:
-            second_octet = int(parts[1])
-            # Docker uses 172.16.0.0 - 172.31.255.255
-            if 16 <= second_octet <= 31:
-                logger.info(f"Allowing Docker network request from {client_host}")
-                return True
-
-    # Check if it's localhost
-    if client_host in ["127.0.0.1", "::1", "localhost"]:
-        return True
-
-    return False
+    try:
+        ip = ip_address(client_host)
+        # Allow private ranges (10/8, 172.16/12, 192.168/16) and loopback (::1, 127.0.0.0/8)
+        return ip.is_private or ip.is_loopback
+    except ValueError:
+        # Not an IP address (e.g., hostname) – deny by default
+        return False
 
 
 @router.get("/health")

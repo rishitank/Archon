@@ -14,20 +14,23 @@ from collections import deque
 from datetime import datetime
 from typing import Any
 
+import os
+import socket
 import docker
 from docker.errors import APIError, NotFound
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Request
 from pydantic import BaseModel
 
 # Import unified logging
 from ..config.logfire_config import api_logger, mcp_logger, safe_set_attribute, safe_span
 from ..utils import get_supabase_client
+from ..constants.mcp import Status, ENV_MCP_PORT, DEFAULT_MCP_SERVICE_HOST
 
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
 
 class ServerConfig(BaseModel):
-    transport: str = "sse"
+    transport: str = "http"  # Streamable HTTP transport
     host: str = "localhost"
     port: int = 8051
 
@@ -77,9 +80,18 @@ class MCPServerManager:
             self.docker_client = None
 
     def _get_container_status(self) -> str:
-        """Get the current status of the MCP container."""
+        """Get the current status of the MCP container.
+
+        Fallback: If Docker is unavailable (e.g., prod without docker.sock), detect MCP via TCP.
+        """
         if not self.docker_client:
-            return "docker_unavailable"
+            # Try TCP probe for MCP before declaring unavailable
+            try:
+                mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                    return Status.RUNNING
+            except Exception:
+                return Status.DOCKER_UNAVAILABLE
 
         try:
             if self.container:
@@ -89,10 +101,22 @@ class MCPServerManager:
 
             return self.container.status
         except NotFound:
-            return "not_found"
+            # Fallback TCP probe in case discovery failed
+            try:
+                mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                    return Status.RUNNING
+            except Exception:
+                return Status.NOT_FOUND
         except Exception as e:
             mcp_logger.error(f"Error getting container status: {str(e)}")
-            return "error"
+            # Final fallback TCP probe
+            try:
+                mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                    return Status.RUNNING
+            except Exception:
+                return Status.ERROR
 
     def _is_log_reader_active(self) -> bool:
         """Check if the log reader task is active."""
@@ -139,19 +163,34 @@ class MCPServerManager:
                 mcp_logger.error("Docker client not available")
                 return {
                     "success": False,
-                    "status": "docker_unavailable",
+                    "status": Status.DOCKER_UNAVAILABLE,
                     "message": "Docker is not available. Is Docker socket mounted?",
                 }
 
             # Check current container status
             container_status = self._get_container_status()
 
-            if container_status == "not_found":
-                mcp_logger.error(f"Container {self.container_name} not found")
+            if container_status in (Status.NOT_FOUND, Status.DOCKER_UNAVAILABLE):
+                # If TCP probe believes MCP is running, surface as running
+                try:
+                    mcp_port = int(os.getenv(ENV_MCP_PORT, "8051"))
+                    with socket.create_connection((DEFAULT_MCP_SERVICE_HOST, mcp_port), timeout=1.0):
+                        self.status = Status.RUNNING
+                        return {
+                            "success": True,
+                            "status": Status.RUNNING,
+                            "message": "MCP server appears to be running (detected via TCP)."
+                        }
+                except Exception:
+                    pass
+                mcp_logger.error("MCP container not found or Docker unavailable during start request")
                 return {
                     "success": False,
-                    "status": "not_found",
-                    "message": f"MCP container {self.container_name} not found. Run docker-compose up -d archon-mcp",
+                    "status": container_status,
+                    "message": (
+                        "MCP not available. Ensure 'archon-mcp' service is running. "
+                        "Try: `docker compose up -d archon-mcp`."
+                    ),
                 }
 
             if container_status == "running":
@@ -281,6 +320,27 @@ class MCPServerManager:
                 self.status = "stopping"
                 self._add_log("INFO", "Stopping MCP container...")
                 mcp_logger.info(f"Stopping MCP container: {self.container_name}")
+
+                # Ensure container reference exists
+                if not self.container:
+                    try:
+                        self.container = self.docker_client.containers.get(self.container_name)
+                    except Exception:
+                        self.container = None
+
+                if not self.container:
+                    warning_msg = (
+                        "Docker container not found; cannot stop via API. "
+                        "This can happen if Docker is unavailable or the container name changed."
+                    )
+                    self._add_log("WARNING", warning_msg)
+                    mcp_logger.warning(warning_msg)
+                    return {
+                        "success": False,
+                        "status": container_status,
+                        "message": warning_msg,
+                    }
+
                 safe_set_attribute(span, "container_id", self.container.id)
 
                 # Cancel log reading task
@@ -368,8 +428,6 @@ class MCPServerManager:
                 self.container.reload()
                 started_at = self.container.attrs["State"]["StartedAt"]
                 # Parse ISO format datetime
-                from datetime import datetime
-
                 started_time = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
                 uptime = int((datetime.now(started_time.tzinfo) - started_time).total_seconds())
             except Exception:
@@ -621,7 +679,7 @@ async def clear_logs():
 
 
 @router.get("/config")
-async def get_mcp_config():
+async def get_mcp_config(request: Request):
     """Get MCP server configuration."""
     with safe_span("api_get_mcp_config") as span:
         safe_set_attribute(span, "endpoint", "/api/mcp/config")
@@ -635,12 +693,35 @@ async def get_mcp_config():
 
             mcp_port = int(os.getenv("ARCHON_MCP_PORT", "8051"))
 
-            # Configuration for SSE-only mode with actual port
+            # Configuration reflecting Streamable HTTP transport
             config = {
                 "host": "localhost",
                 "port": mcp_port,
-                "transport": "sse",
+                "transport": "http",
             }
+
+            # Derive a public URL for remote clients from env or request headers
+            # Preference order:
+            # 1) ARCHON_MCP_PUBLIC_URL (explicit public endpoint)
+            # 2) Derived from request headers (x-forwarded-proto + host)
+            public_url = os.getenv("ARCHON_MCP_PUBLIC_URL")
+            try:
+                if not public_url and request is not None:
+                    # Prefer reverse-proxy headers if present
+                    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+                    host_hdr = request.headers.get("host")
+                    if host_hdr and scheme:
+                        public_url = f"{scheme}://{host_hdr}"
+                # Append /mcp path if not present
+                if public_url:
+                    pu = public_url.rstrip("/")
+                    if not pu.endswith("/mcp"):
+                        public_url = pu + "/mcp"
+            except Exception:
+                public_url = None
+
+            if public_url:
+                config["public_url"] = public_url
 
             # Get only model choice from database
             try:
