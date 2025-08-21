@@ -138,7 +138,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[ArchonContext]:
 
     # Quick check without lock
     if _initialization_complete and _shared_context:
-        logger.info("♻️ Reusing existing context for new SSE connection")
+        logger.info("♻️ Reusing existing context for new HTTP stream connection")
         yield _shared_context
         return
 
@@ -146,7 +146,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[ArchonContext]:
     with _initialization_lock:
         # Double-check pattern
         if _initialization_complete and _shared_context:
-            logger.info("♻️ Reusing existing context for new SSE connection")
+            logger.info("♻️ Reusing existing context for new HTTP stream connection")
             yield _shared_context
             return
 

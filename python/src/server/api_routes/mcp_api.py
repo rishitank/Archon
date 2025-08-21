@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
 
 class ServerConfig(BaseModel):
-    transport: str = "sse"
+    transport: str = "http"  # Streamable HTTP transport
     host: str = "localhost"
     port: int = 8051
 
@@ -701,14 +701,27 @@ async def get_mcp_config(request: Request):
             }
 
             # Derive a public URL for remote clients from env or request headers
-            public_url = os.getenv("ARCHON_MCP_PUBLIC_URL")
+            # Preference order:
+            # 1) SERVICE_URL_ARCHON_MCP (compose-provided external URL)
+            # 2) ARCHON_MCP_PUBLIC_URL (explicit override)
+            # 3) Derived from request headers (x-forwarded-proto + host)
+            public_url = (
+                os.getenv("SERVICE_URL_ARCHON_MCP")
+                or os.getenv("SERVICE_URL_ARCHON-MCP")  # unlikely on most OSes, but check
+                or os.getenv("ARCHON_MCP_PUBLIC_URL")
+            )
             try:
                 if not public_url and request is not None:
                     # Prefer reverse-proxy headers if present
                     scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
                     host_hdr = request.headers.get("host")
                     if host_hdr and scheme:
-                        public_url = f"{scheme}://{host_hdr}/mcp"
+                        public_url = f"{scheme}://{host_hdr}"
+                # Append /mcp path if not present
+                if public_url:
+                    pu = public_url.rstrip("/")
+                    if not pu.endswith("/mcp"):
+                        public_url = pu + "/mcp"
             except Exception:
                 public_url = None
 
